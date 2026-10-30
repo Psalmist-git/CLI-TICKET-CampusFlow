@@ -1,0 +1,27 @@
+[
+    {
+        "id": "TKT-001",
+        "title": "Broken Classroom Fan",
+        "description": "The fan in classroom 4 has stopped working."
+    },
+    {
+        "id": "TKT-002",
+        "title": "Broken Window",
+        "description": "The window in classroom 2 is broken."
+    },
+    {
+        "id": "TKT-003",
+        "title": "Network Connection Problem",
+        "description": "The internet connection in the computer laboratory is unavailable."
+    },
+    {
+        "id": "TKT-004",
+        "title": "Wifi",
+        "description": "Bad condition"
+    },
+    {
+        "id": "TKT-005",
+        "title": "wifi",
+        "description": "bad"
+    }
+]
