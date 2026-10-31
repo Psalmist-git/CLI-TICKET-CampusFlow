@@ -2,7 +2,7 @@
 from storage import load_tickets, save_tickets
 from ticket_manager import generate_ticket_id
 from validation import get_ticket_title, get_ticket_description
-
+from ai_assistant import get_ai_suggestions
 
 # 1. Welcome messages
 print("*************************************************")
@@ -57,6 +57,12 @@ print("Description:", ticket["description"])
 
 # 10. Display all retrieved tickets
 saved_tickets = load_tickets()
+print("\nGetting AI suggestions...")
+
+suggestions = get_ai_suggestions(ticket["description"])
+
+print("\nAI Suggestions:")
+print(suggestions)
 
 print("\nAll Retrieved Tickets:")
 print(saved_tickets)

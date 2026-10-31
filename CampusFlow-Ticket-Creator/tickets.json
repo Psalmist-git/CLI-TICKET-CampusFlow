@@ -23,5 +23,40 @@
         "id": "TKT-005",
         "title": "wifi",
         "description": "bad"
+    },
+    {
+        "id": "TKT-006",
+        "title": "Wifi",
+        "description": "Bad"
+    },
+    {
+        "id": "TKT-007",
+        "title": "Campus Wi-Fi connection problem",
+        "description": "My laptop connects to the campus Wi-Fi, but websites are not loading. Other students are experiencing the same problem."
+    },
+    {
+        "id": "TKT-008",
+        "title": "Keyboard",
+        "description": "incomplete"
+    },
+    {
+        "id": "TKT-009",
+        "title": "Projector not working",
+        "description": "The classroom projector turns on but displays no image."
+    },
+    {
+        "id": "TKT-010",
+        "title": "Web",
+        "description": "Terrible"
+    },
+    {
+        "id": "TKT-011",
+        "title": "Facility Management",
+        "description": "Terrible management condditions"
+    },
+    {
+        "id": "TKT-012",
+        "title": "Reception",
+        "description": "Poor manners"
     }
 ]
