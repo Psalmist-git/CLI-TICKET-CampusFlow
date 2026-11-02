@@ -243,65 +243,50 @@ def generate_gemini_response(prompt, model, temperature):
     api_key = get_setting("GEMINI_API_KEY")
 
     if not api_key:
-        raise ValueError(
-            "Gemini API key is not configured."
-        )
+        raise ValueError("Gemini API key is not configured.")
 
     client = create_gemini_client(api_key)
 
-    # Try the selected model first, then the fallback.
-    models_to_try = [
+    models_to_try = list(dict.fromkeys([
         model,
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite",
         "gemini-flash-latest",
-    ]
-
-    # Remove duplicate model names.
-    models_to_try = list(dict.fromkeys(models_to_try))
+    ]))
 
     last_error = None
 
     for selected_model in models_to_try:
 
-        for attempt in range(2):
+        try:
+            response = client.models.generate_content(
+                model=selected_model,
+                contents=prompt,
+                config={
+                    "temperature": temperature,
+                    "max_output_tokens": 1800,
+                }
+            )
 
-            try:
+            result = response.text
 
-                response = client.models.generate_content(
-                    model=selected_model,
-                    contents=prompt,
-                    config={
-                        "temperature": temperature,
-                        "max_output_tokens": 1800,
-                    }
-                )
+            if result:
+                logger.info("Gemini succeeded using %s", selected_model)
+                return result.strip()
 
-                result = response.text
+            last_error = ValueError("Gemini returned an empty response.")
 
-                if result:
-                    return result.strip()
+        except Exception as error:
+            last_error = error
 
-                raise ValueError(
-                    "Gemini returned an empty response."
-                )
-
-            except Exception as error:
-
-                last_error = error
-
-                logger.warning(
-                    "Gemini request failed | model=%s | attempt=%s | error=%s",
-                    selected_model,
-                    attempt + 1,
-                    safe_error_text(error)
-                )
-
-                # Retry temporary failures.
-                if attempt == 0:
-                    import time
-                    time.sleep(2)
+            logger.warning(
+                "Gemini model failed: %s | %s",
+                selected_model,
+                safe_error_text(error)
+            )
 
     raise RuntimeError(
-        f"Gemini failed with all available attempts: {safe_error_text(last_error)}"
+        f"All Gemini models failed: {safe_error_text(last_error)}"
     )
 
 
