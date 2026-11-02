@@ -1,356 +1,411 @@
-import os
 import json
-import time
+import os
+import re
 from functools import lru_cache
+
 from google import genai
 
 
 # =====================================================
-# GEMINI MODEL CONFIGURATION
+# GEMINI CONFIGURATION
 # =====================================================
 
-# Keep separate model settings for independent optimisation.
-ANALYSIS_MODEL_NAME = "gemini-3.1-flash-lite"
-CHAT_MODEL_NAME = "gemini-3.1-flash-lite"
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 
-
-# =====================================================
-# GEMINI CLIENT
-# =====================================================
 
 @lru_cache(maxsize=1)
 def create_gemini_client(api_key):
-    """Create and reuse a Gemini client."""
-
+    """Create and reuse the Gemini client."""
     return genai.Client(api_key=api_key)
 
 
 def get_gemini_client():
-    """Get the reusable Gemini client."""
-
+    """Retrieve the Gemini client using the configured API key."""
     api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        return None
+        raise ValueError(
+            "GEMINI_API_KEY is missing. Configure your Gemini API key."
+        )
 
     return create_gemini_client(api_key)
 
 
+def generate_response(prompt, temperature=0.4):
+    """Send a prompt to Gemini and return its text response."""
+    client = get_gemini_client()
+
+    response = client.models.generate_content(
+        model=MODEL_NAME,
+        contents=prompt,
+        config={
+            "temperature": temperature,
+            "max_output_tokens": 1800,
+        }
+    )
+
+    result = response.text
+
+    if not result:
+        raise ValueError("Gemini returned an empty response.")
+
+    return result.strip()
+
+
 # =====================================================
-# SMART TICKET CLASSIFICATION
+# JSON EXTRACTION
+# =====================================================
+
+def extract_json(response_text):
+    """Extract a JSON object from Gemini's response."""
+
+    cleaned = response_text.strip()
+
+    cleaned = re.sub(
+        r"^```(?:json)?\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE
+    )
+
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+
+    if start == -1 or end == -1:
+        raise ValueError("Gemini did not return valid JSON.")
+
+    return json.loads(cleaned[start:end + 1])
+
+
+# =====================================================
+# MODULE 1: TICKET INTELLIGENCE
 # =====================================================
 
 def get_ticket_intelligence(description):
-    """Classify a campus support ticket quickly."""
+    """
+    Analyse a campus support problem.
 
-    start_time = time.perf_counter()
+    Returns:
+        category
+        priority
+        department
+        reason
+        recommended_action
+    """
 
-    try:
-        client = get_gemini_client()
+    if not description or not description.strip():
+        return None
 
-        if not client:
-            return None
+    prompt = f"""
+You are the CampusFlow Ticket Intelligence Engine.
 
-        prompt = f"""
-Classify this campus support ticket.
+You analyse university and campus support problems.
 
-DESCRIPTION:
-{description}
+Analyse the following problem carefully:
 
-CATEGORY:
-Network, Hardware, Software, Facilities, Other.
+TICKET DESCRIPTION:
+{description.strip()}
 
-PRIORITY:
-Critical, High, Medium, Low.
+Choose exactly one category from:
+- Network
+- Hardware
+- Software
+- Facilities
+- Other
 
-DEPARTMENT:
-Recommend the appropriate campus support department.
+Choose exactly one priority from:
+- Critical
+- High
+- Medium
+- Low
 
-REASON:
-Briefly explain the classification.
+Identify the most appropriate responsible department.
 
-RULES:
-- Use only facts supported by the description.
-- Reserve Critical for genuinely urgent issues.
-- If information is insufficient, explain why.
-- Return valid JSON only.
-- Do not include markdown.
+Priority guidelines:
 
-FORMAT:
+CRITICAL:
+Immediate danger, serious security incident, major outage
+or a problem affecting essential campus operations.
+
+HIGH:
+A serious problem affecting multiple students or an
+important university service.
+
+MEDIUM:
+A problem affecting an individual or a limited group
+but not causing an emergency.
+
+LOW:
+Minor inconvenience, general request or non-urgent issue.
+
+Return ONLY a valid JSON object in this structure:
+
 {{
-    "category": "",
-    "priority": "",
-    "department": "",
-    "reason": ""
+    "category": "Network",
+    "priority": "High",
+    "department": "ICT Department",
+    "reason": "Explain why this category and priority were selected.",
+    "recommended_action": "Explain the immediate recommended action."
 }}
+
+Rules:
+- Do not invent facts that are not in the description.
+- Do not exaggerate the urgency.
+- Explain your classification clearly.
+- Return valid JSON only.
 """
 
-        response = client.interactions.create(
-            model=ANALYSIS_MODEL_NAME,
-            input=prompt
+    try:
+        raw_response = generate_response(
+            prompt,
+            temperature=0.2
         )
 
-        if not response.output_text:
-            return None
+        result = extract_json(raw_response)
 
-        intelligence = json.loads(response.output_text)
-
-        required_fields = [
-            "category",
-            "priority",
-            "department",
-            "reason"
-        ]
-
-        if not all(field in intelligence for field in required_fields):
-            return None
-
-        result = {
-            field: str(intelligence[field])
-            for field in required_fields
+        allowed_categories = {
+            "Network",
+            "Hardware",
+            "Software",
+            "Facilities",
+            "Other"
         }
 
-        elapsed_time = time.perf_counter() - start_time
+        allowed_priorities = {
+            "Critical",
+            "High",
+            "Medium",
+            "Low"
+        }
 
-        print(
-            f"CampusFlow classification time: {elapsed_time:.2f} seconds"
-        )
+        category = str(result.get("category", "Other")).strip()
+        priority = str(result.get("priority", "Medium")).strip()
 
-        return result
+        if category not in allowed_categories:
+            category = "Other"
+
+        if priority not in allowed_priorities:
+            priority = "Medium"
+
+        return {
+            "category": category,
+            "priority": priority,
+            "department": str(
+                result.get("department", "General Support")
+            ),
+            "reason": str(
+                result.get("reason", "No explanation provided.")
+            ),
+            "recommended_action": str(
+                result.get(
+                    "recommended_action",
+                    "Refer the issue to the appropriate support department."
+                )
+            )
+        }
 
     except Exception as error:
-
-        elapsed_time = time.perf_counter() - start_time
-
-        print(
-            f"AI intelligence error: {type(error).__name__}"
-        )
-
-        print(
-            f"Classification failed after: {elapsed_time:.2f} seconds"
-        )
-
+        print(f"Ticket intelligence error: {error}")
         return None
 
 
 # =====================================================
-# AI TROUBLESHOOTING SUGGESTIONS
+# MODULE 2: AI SUGGESTIONS
 # =====================================================
 
 def get_ai_suggestions(description):
-    """Generate concise troubleshooting suggestions quickly."""
+    """
+    Generate practical troubleshooting recommendations
+    for a campus support problem.
+    """
 
-    start_time = time.perf_counter()
+    if not description or not description.strip():
+        return "Please describe the problem so I can provide suggestions."
 
-    try:
-        client = get_gemini_client()
+    prompt = f"""
+You are the CampusFlow AI Troubleshooting Specialist.
 
-        if not client:
-            return "AI unavailable: Gemini API key is missing."
+Your responsibility is to help students, lecturers,
+administrators and university support staff resolve campus problems.
 
-        prompt = f"""
-You are a campus IT support assistant.
+PROBLEM:
+{description.strip()}
 
-Analyse this ticket:
+Provide a useful, practical response using this structure:
 
-{description}
+## 1. Understanding the Problem
+Briefly explain what may be happening.
 
-Give a concise response with:
+## 2. Possible Causes
+Identify the most likely causes.
+Do not claim that an unverified cause is certain.
 
-1. Likely cause.
-2. Three practical troubleshooting steps.
-3. When to escalate to a technician.
-4. Up to two questions if more information is needed.
+## 3. Recommended Solutions
+Give at least three numbered troubleshooting steps.
 
-RULES:
-- Be practical and specific.
-- Do not invent facts.
-- Avoid unnecessary explanations.
-- Keep the response concise.
+Each step must:
+- Be clear and practical.
+- Explain exactly what the user should do.
+- Be suitable for a non-technical student where possible.
+
+## 4. When to Escalate
+Explain when the user should contact the responsible
+university department and what information to provide.
+
+## 5. Prevention
+Give practical advice to reduce the chance of the
+problem happening again.
+
+IMPORTANT RULES:
+- Never request passwords or private login credentials.
+- Never recommend bypassing university security.
+- Never claim that you have fixed the problem.
+- Do not invent university policies or contact details.
+- If the issue involves electrical danger, physical danger
+  or an urgent security incident, advise the user to contact
+  the appropriate university emergency or support personnel.
+- Keep the response professional and easy to understand.
 """
 
-        response = client.interactions.create(
-            model=ANALYSIS_MODEL_NAME,
-            input=prompt
+    try:
+        return generate_response(
+            prompt,
+            temperature=0.5
         )
-
-        if not response.output_text:
-            return "AI could not generate suggestions."
-
-        elapsed_time = time.perf_counter() - start_time
-
-        print(
-            f"CampusFlow suggestions time: {elapsed_time:.2f} seconds"
-        )
-
-        return response.output_text
 
     except Exception as error:
+        print(f"AI suggestions error: {error}")
 
-        elapsed_time = time.perf_counter() - start_time
-
-        print(
-            f"AI suggestions error: {type(error).__name__}"
+        return (
+            "CampusFlow AI could not generate suggestions right now. "
+            "Please check your Gemini API configuration and try again."
         )
-
-        print(
-            f"Suggestions failed after: {elapsed_time:.2f} seconds"
-        )
-
-        return "Sorry, AI suggestions are currently unavailable."
 
 
 # =====================================================
-# CAMPUSFLOW AI CHATBOT
-# PRESERVED WITHOUT CHANGES
+# MODULE 3: CAMPUSFLOW CHATBOT
 # =====================================================
+
+def prepare_ticket_context(tickets):
+    """Prepare a safe, concise summary of recent ticket records."""
+
+    if not tickets:
+        return "No ticket records are currently available."
+
+    summaries = []
+
+    for ticket in tickets[-10:]:
+
+        if not isinstance(ticket, dict):
+            continue
+
+        summary = {
+            "ticket_id": ticket.get(
+                "ticket_id",
+                ticket.get("id", "Unknown")
+            ),
+            "title": ticket.get("title", "Untitled"),
+            "description": ticket.get("description", ""),
+            "category": ticket.get("category", "Unclassified"),
+            "priority": ticket.get("priority", "Unassigned"),
+            "status": ticket.get("status", "Unknown"),
+            "department": ticket.get("department", "Unassigned")
+        }
+
+        summaries.append(summary)
+
+    return json.dumps(
+        summaries,
+        indent=2,
+        ensure_ascii=False
+    )
+
 
 def get_chatbot_response(messages, tickets=None):
     """
-    Generate a conversational response using the faster Gemini model.
+    Generate a context-aware chatbot response.
 
-    messages:
-        List of dictionaries containing role and content.
-
-    tickets:
-        Saved CampusFlow ticket records.
+    Uses recent conversation history and available ticket records.
     """
 
-    start_time = time.perf_counter()
+    if not messages:
+        return "Hello! How can I help you with campus support today?"
 
-    try:
+    ticket_context = prepare_ticket_context(tickets)
 
-        client = get_gemini_client()
+    conversation = []
 
-        if not client:
-            return (
-                "The AI assistant is unavailable because "
-                "the Gemini API key is missing."
-            )
+    for message in messages[-8:]:
 
-        # -------------------------------------------------
-        # 1. PREPARE RECENT TICKET INFORMATION
-        # -------------------------------------------------
+        if not isinstance(message, dict):
+            continue
 
-        ticket_context = "No ticket records are available."
+        role = message.get("role", "user")
+        content = str(message.get("content", "")).strip()
 
-        if tickets:
+        if not content:
+            continue
 
-            recent_tickets = tickets[-10:]
+        if role not in {"user", "assistant"}:
+            continue
 
-            ticket_lines = []
+        conversation.append(
+            f"{role.upper()}: {content[:2000]}"
+        )
 
-            for ticket in recent_tickets:
+    conversation_history = "\n\n".join(conversation)
 
-                ticket_lines.append(
-                    f"ID: {ticket.get('id', 'Unknown')} | "
-                    f"Title: {ticket.get('title', 'Untitled')} | "
-                    f"Category: {ticket.get('category', 'Unclassified')} | "
-                    f"Priority: {ticket.get('priority', 'Unassigned')} | "
-                    f"Department: {ticket.get('department', 'Unassigned')} | "
-                    f"Status: {ticket.get('status', 'Open')}"
-                )
+    prompt = f"""
+You are CampusFlow AI, an intelligent university campus
+support assistant.
 
-            ticket_context = "\n".join(ticket_lines)
+YOUR RESPONSIBILITIES:
+1. Answer campus support questions.
+2. Explain ticket creation and management.
+3. Help users understand ticket priorities and statuses.
+4. Provide practical troubleshooting guidance.
+5. Use available ticket records to answer relevant questions.
+6. Help users understand which support department may be responsible.
 
-        # -------------------------------------------------
-        # 2. REDUCE CONVERSATION HISTORY
-        # -------------------------------------------------
-
-        recent_messages = messages[-8:]
-
-        conversation = []
-
-        for message in recent_messages:
-
-            role = message.get("role", "user")
-            content = message.get("content", "")
-
-            if role not in ("user", "assistant"):
-                continue
-
-            role_name = (
-                "CampusFlow AI"
-                if role == "assistant"
-                else "User"
-            )
-
-            conversation.append(
-                f"{role_name}: {content}"
-            )
-
-        conversation_text = "\n".join(conversation)
-
-        # -------------------------------------------------
-        # 3. BUILD A SHORTER PROMPT
-        # -------------------------------------------------
-
-        prompt = f"""
-You are CampusFlow AI, a friendly university campus support assistant.
-
-YOUR JOB:
-- Help students and staff with campus support problems.
-- Provide practical troubleshooting advice.
-- Explain ticket creation, statuses and priorities.
-- Answer questions about available campus tickets.
-
-RULES:
-- Use the ticket records below when answering ticket questions.
-- Never invent ticket IDs, statistics or department information.
-- If information is unavailable, say so.
-- Do not claim to create or update tickets.
-- Never request passwords or sensitive personal information.
-- Keep answers clear, helpful and concise.
-- For emergencies, advise contacting campus emergency services.
-
-RECENT CAMPUS TICKETS:
+AVAILABLE CAMPUS TICKET RECORDS:
 {ticket_context}
 
 RECENT CONVERSATION:
-{conversation_text}
+{conversation_history}
 
-Answer the user's latest message directly.
+IMPORTANT RULES:
+
+- Be friendly, professional and helpful.
+- Give direct answers before adding explanations.
+- Use the available ticket records when relevant.
+- Never invent ticket IDs or ticket information.
+- Never claim to have created, updated, assigned or resolved a ticket.
+- You may explain how a user can perform those actions in CampusFlow.
+- Never request passwords or sensitive login credentials.
+- If information is unavailable, say so honestly.
+- Keep answers organised and easy to understand.
+- Remember the context of the conversation when answering follow-up questions.
+
+Respond to the latest user message.
 """
 
-        # -------------------------------------------------
-        # 4. SEND REQUEST TO THE LIGHTWEIGHT MODEL
-        # -------------------------------------------------
-
-        response = client.interactions.create(
-            model=CHAT_MODEL_NAME,
-            input=prompt
+    try:
+        return generate_response(
+            prompt,
+            temperature=0.6
         )
-
-        if not response.output_text:
-            return "I couldn't generate a response. Please try again."
-
-        answer = response.output_text
-
-        # -------------------------------------------------
-        # 5. MEASURE RESPONSE TIME
-        # -------------------------------------------------
-
-        elapsed_time = time.perf_counter() - start_time
-
-        print(
-            f"CampusFlow AI response time: {elapsed_time:.2f} seconds"
-        )
-
-        return answer
 
     except Exception as error:
-
-        elapsed_time = time.perf_counter() - start_time
-
-        print(
-            f"Chatbot error: {type(error).__name__}"
-        )
-
-        print(
-            f"Failed request time: {elapsed_time:.2f} seconds"
-        )
+        print(f"CampusFlow chatbot error: {error}")
 
         return (
-            "I'm sorry, the CampusFlow AI Assistant is temporarily "
-            "unavailable. Please try again shortly."
+            "I'm sorry, CampusFlow AI is temporarily unable to respond. "
+            "Please check the Gemini API configuration and try again."
         )

@@ -1640,115 +1640,236 @@ elif page == "🛠️ Manage Tickets":
         st.info("No tickets have been created yet.")
 
 
+
 # =====================================================
-# AI ASSISTANT
+# AI ASSISTANT - THREE AI MODULES
 # =====================================================
 
 elif page == "🤖 AI Assistant":
 
     display_welcome_banner(
-        "CampusFlow AI Assistant 🤖",
-        "Ask questions, troubleshoot problems and get help with campus support."
+        "CampusFlow AI Workspace 🤖",
+        "Choose an AI tool to analyse tickets, receive solutions "
+        "or chat with your intelligent campus assistant."
     )
 
-    st.subheader("Chat with CampusFlow AI")
+    st.markdown("### Choose Your AI Module")
 
-    st.caption(
-        "Your AI assistant can answer general campus support questions "
-        "and use available ticket records as context."
+    ai_module = st.radio(
+        "Select an AI service:",
+        [
+            "🎯 Ticket Intelligence",
+            "💡 AI Suggestions",
+            "💬 CampusFlow Chatbot"
+        ],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="campusflow_ai_module"
     )
-
-    st.markdown("**Try asking:**")
-
-    suggestion_col1, suggestion_col2, suggestion_col3 = st.columns(3)
-
-    with suggestion_col1:
-
-        st.html("""
-        <div class="info-card">
-            <h4>📶 Wi-Fi Help</h4>
-            <p>How can I fix campus Wi-Fi problems?</p>
-        </div>
-        """)
-
-    with suggestion_col2:
-
-        st.html("""
-        <div class="info-card">
-            <h4>🎫 Ticket Help</h4>
-            <p>How do I submit a support ticket?</p>
-        </div>
-        """)
-
-    with suggestion_col3:
-
-        st.html("""
-        <div class="info-card">
-            <h4>📊 Ticket Status</h4>
-            <p>What do the different ticket statuses mean?</p>
-        </div>
-        """)
 
     st.divider()
 
-    clear_col1, clear_col2 = st.columns([5, 1])
+    # -------------------------------------------------
+    # MODULE 1: TICKET INTELLIGENCE
+    # -------------------------------------------------
 
-    with clear_col2:
+    if ai_module == "🎯 Ticket Intelligence":
 
-        if st.button("🗑️ Clear Chat"):
+        st.subheader("🎯 AI Ticket Intelligence")
 
+        st.write(
+            "Describe a campus problem. Gemini will identify "
+            "its category, priority and responsible department."
+        )
+
+        description = st.text_area(
+            "Describe the campus problem",
+            placeholder="Example: The Wi-Fi connection in the library has stopped working.",
+            height=150,
+            key="intelligence_description"
+        )
+
+        if st.button("🔍 Analyse Ticket", use_container_width=True):
+
+            if not description.strip():
+                st.warning("Please describe the problem first.")
+
+            else:
+                with st.spinner("Gemini is analysing your ticket..."):
+                    try:
+                        result = get_ticket_intelligence(description)
+
+                        if not result:
+                            st.error(
+                                "The AI could not analyse this ticket. "
+                                "Check your Gemini API configuration and try again."
+                            )
+
+                        else:
+                            st.success("Ticket analysis completed!")
+
+                            col1, col2, col3 = st.columns(3)
+
+                            with col1:
+                                st.metric(
+                                    "Category",
+                                    result.get("category", "Unknown")
+                                )
+
+                            with col2:
+                                st.metric(
+                                    "Priority",
+                                    result.get("priority", "Unknown")
+                                )
+
+                            with col3:
+                                st.metric(
+                                    "Department",
+                                    result.get("department", "Unknown")
+                                )
+
+                            st.subheader("Analysis")
+                            st.write(
+                                result.get(
+                                    "reason",
+                                    "No additional explanation provided."
+                                )
+                            )
+
+                    except Exception as error:
+                        st.error(
+                            f"Ticket analysis failed: {type(error).__name__}"
+                        )
+
+    # -------------------------------------------------
+    # MODULE 2: AI SUGGESTIONS
+    # -------------------------------------------------
+
+    elif ai_module == "💡 AI Suggestions":
+
+        st.subheader("💡 AI Troubleshooting Suggestions")
+
+        st.write(
+            "Describe a campus problem and receive practical "
+            "troubleshooting steps and recommendations."
+        )
+
+        problem = st.text_area(
+            "What problem are you experiencing?",
+            placeholder="Example: My student portal refuses to accept my login credentials.",
+            height=150,
+            key="suggestion_description"
+        )
+
+        if st.button("✨ Generate Suggestions", use_container_width=True):
+
+            if not problem.strip():
+                st.warning("Please describe the problem first.")
+
+            else:
+                with st.spinner(
+                    "CampusFlow AI is generating recommendations..."
+                ):
+                    try:
+                        suggestions = get_ai_suggestions(problem)
+
+                        st.success("AI recommendations generated!")
+                        st.subheader("Recommended Solutions")
+                        st.markdown(suggestions)
+
+                    except Exception as error:
+                        st.error(
+                            f"Suggestion generation failed: {type(error).__name__}"
+                        )
+
+    # -------------------------------------------------
+    # MODULE 3: CAMPUSFLOW CHATBOT
+    # -------------------------------------------------
+
+    elif ai_module == "💬 CampusFlow Chatbot":
+
+        st.subheader("💬 Chat with CampusFlow AI")
+
+        st.caption(
+            "Ask questions about campus support, troubleshooting "
+            "and available ticket information."
+        )
+
+        st.markdown("**Try asking:**")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.info("📶 How can I fix campus Wi-Fi problems?")
+
+        with col2:
+            st.info("🎫 How do I submit a support ticket?")
+
+        with col3:
+            st.info("📊 What do ticket statuses mean?")
+
+        if "chat_messages" not in st.session_state:
             st.session_state["chat_messages"] = []
-            st.rerun()
 
-    if not st.session_state["chat_messages"]:
+        clear_col, _ = st.columns([1, 5])
 
-        with st.chat_message("assistant"):
+        with clear_col:
+            if st.button("🗑️ Clear Chat"):
+                st.session_state["chat_messages"] = []
+                st.rerun()
 
-            st.markdown(
-                """
-                Hello! 👋 Welcome to CampusFlow AI.
+        if not st.session_state["chat_messages"]:
+            with st.chat_message("assistant"):
+                st.markdown(
+                    """
+                    Hello! 👋 Welcome to CampusFlow AI.
 
-                I'm here to help you with campus support questions,
-                troubleshooting and ticket information.
+                    I can help you understand campus support,
+                    troubleshoot problems and answer ticket-related
+                    questions.
 
-                What would you like help with today?
-                """
-            )
-
-    for message in st.session_state["chat_messages"]:
-
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    user_prompt = st.chat_input(
-        "Ask CampusFlow AI a question..."
-    )
-
-    if user_prompt:
-
-        st.session_state["chat_messages"].append({
-            "role": "user",
-            "content": user_prompt
-        })
-
-        with st.chat_message("user"):
-            st.markdown(user_prompt)
-
-        with st.chat_message("assistant"):
-
-            with st.spinner("CampusFlow AI is thinking..."):
-
-                response = get_chatbot_response(
-                    st.session_state["chat_messages"],
-                    load_tickets()
+                    What would you like help with?
+                    """
                 )
 
-            st.markdown(response)
+        for message in st.session_state["chat_messages"]:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
 
-        st.session_state["chat_messages"].append({
-            "role": "assistant",
-            "content": response
-        })
+        user_prompt = st.chat_input(
+            "Ask CampusFlow AI a question...",
+            key="campusflow_chat_input"
+        )
+
+        if user_prompt:
+
+            st.session_state["chat_messages"].append({
+                "role": "user",
+                "content": user_prompt
+            })
+
+            with st.chat_message("user"):
+                st.markdown(user_prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("CampusFlow AI is thinking..."):
+                    try:
+                        response = get_chatbot_response(
+                            st.session_state["chat_messages"],
+                            load_tickets()
+                        )
+                    except Exception as error:
+                        response = (
+                            "I'm sorry, I couldn't process that request. "
+                            f"Error: {type(error).__name__}"
+                        )
+
+                st.markdown(response)
+
+            st.session_state["chat_messages"].append({
+                "role": "assistant",
+                "content": response
+            })
 
 
 # =====================================================

@@ -1,0 +1,10 @@
+campus_exterior.jpg: https://www.pexels.com/photo/16086326/
+lecture_hall.jpg: https://www.pexels.com/photo/8197534/
+university_library.jpg: https://www.pexels.com/photo/8199659/
+computer_lab.jpg: https://www.pexels.com/photo/6609459/
+student_study_area.jpg: https://www.pexels.com/photo/4623095/
+student_collaboration.jpg: https://www.pexels.com/photo/8199148/
+classroom_discussion.jpg: https://www.pexels.com/photo/8197545/
+students_learning.jpg: https://www.pexels.com/photo/8197511/
+campus_entrance.jpg: https://www.pexels.com/photo/6147042/
+campus_life.jpg: https://www.pexels.com/photo/7972664/
