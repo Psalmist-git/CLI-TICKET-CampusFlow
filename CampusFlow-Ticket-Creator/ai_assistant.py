@@ -52,18 +52,7 @@ PROVIDERS = {
         "default_model": "openai/gpt-oss-120b",
     },
 
-    "Claude": {
-        "key": "ANTHROPIC_API_KEY",
-        "environment_variable": "ANTHROPIC_API_KEY",
-        "models": [
-            "claude-sonnet-5",
-            "claude-sonnet-4-6",
-            "claude-haiku-4-5-20251001",
-        ],
-        "default": "claude-sonnet-4-6",
-        "default_model": "claude-sonnet-4-6",
-    },
-
+    
     "OpenRouter": {
         "key": "OPENROUTER_API_KEY",
         "environment_variable": "OPENROUTER_API_KEY",
@@ -512,12 +501,9 @@ def generate_response(
     provider = provider or get_selected_provider()
 
     if provider not in PROVIDERS:
-        raise ValueError(
-            "Unsupported AI provider."
-        )
+        raise ValueError("Unsupported AI provider.")
 
     if model is None:
-
         model = st.session_state.get(
             f"ai_model_{provider}",
             PROVIDERS[provider]["default_model"]
@@ -535,42 +521,22 @@ def generate_response(
     try:
 
         if provider == "Gemini":
-
             answer = generate_gemini_response(
-                prompt,
-                model,
-                temperature
+                prompt, model, temperature
             )
 
         elif provider == "Groq":
-
             answer = generate_groq_response(
-                prompt,
-                model,
-                temperature
+                prompt, model, temperature
             )
 
         elif provider == "OpenRouter":
-
             answer = generate_openai_compatible_response(
-                prompt,
-                provider,
-                model,
-                temperature
-            )
-
-        elif provider == "Claude":
-
-            answer = generate_claude_response(
-                prompt,
-                model,
-                temperature
+                prompt, provider, model, temperature
             )
 
         else:
-            raise ValueError(
-                "Unsupported AI provider selected."
-            )
+            raise ValueError("Unsupported AI provider selected.")
 
         logger.info(
             "AI request successful | provider=%s | model=%s",
@@ -581,7 +547,6 @@ def generate_response(
         return answer
 
     except Exception as error:
-
         diagnostic = safe_error_text(error)
 
         logger.error(
