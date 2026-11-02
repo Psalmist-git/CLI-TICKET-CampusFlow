@@ -2,61 +2,169 @@
     {
         "id": "TKT-001",
         "title": "Broken Classroom Fan",
-        "description": "The fan in classroom 4 has stopped working."
+        "description": "The fan in classroom 4 has stopped working.",
+        "status": "Open"
     },
     {
         "id": "TKT-002",
         "title": "Broken Window",
-        "description": "The window in classroom 2 is broken."
+        "description": "The window in classroom 2 is broken.",
+        "status": "Open"
     },
     {
         "id": "TKT-003",
         "title": "Network Connection Problem",
-        "description": "The internet connection in the computer laboratory is unavailable."
+        "description": "The internet connection in the computer laboratory is unavailable.",
+        "status": "Open"
     },
     {
         "id": "TKT-004",
         "title": "Wifi",
-        "description": "Bad condition"
+        "description": "Bad condition",
+        "status": "Open"
     },
     {
         "id": "TKT-005",
         "title": "wifi",
-        "description": "bad"
+        "description": "bad",
+        "status": "Open"
     },
     {
         "id": "TKT-006",
         "title": "Wifi",
-        "description": "Bad"
+        "description": "Bad",
+        "status": "Open"
     },
     {
         "id": "TKT-007",
         "title": "Campus Wi-Fi connection problem",
-        "description": "My laptop connects to the campus Wi-Fi, but websites are not loading. Other students are experiencing the same problem."
+        "description": "My laptop connects to the campus Wi-Fi, but websites are not loading. Other students are experiencing the same problem.",
+        "status": "Open"
     },
     {
         "id": "TKT-008",
         "title": "Keyboard",
-        "description": "incomplete"
+        "description": "incomplete",
+        "status": "Open"
     },
     {
         "id": "TKT-009",
         "title": "Projector not working",
-        "description": "The classroom projector turns on but displays no image."
+        "description": "The classroom projector turns on but displays no image.",
+        "status": "Open"
     },
     {
         "id": "TKT-010",
         "title": "Web",
-        "description": "Terrible"
+        "description": "Terrible",
+        "status": "Open"
     },
     {
         "id": "TKT-011",
         "title": "Facility Management",
-        "description": "Terrible management condditions"
+        "description": "Terrible management condditions",
+        "status": "Open"
     },
     {
         "id": "TKT-012",
         "title": "Reception",
-        "description": "Poor manners"
+        "description": "Poor manners",
+        "status": "Open"
+    },
+    {
+        "id": "TKT-013",
+        "title": "Mouse",
+        "description": "None functional and unexpected glitches",
+        "status": "Open"
+    },
+    {
+        "id": "TKT-014",
+        "title": "CCTV Camera",
+        "description": "Inactive",
+        "category": "Other",
+        "priority": "Low",
+        "department": "Campus IT Help Desk",
+        "reason": "The description contains only the word 'Inactive', providing insufficient information to determine the specific issue, system, or urgency.",
+        "status": "Open"
+    },
+    {
+        "id": "TKT-015",
+        "title": "Router",
+        "description": "Displaying all the necessary beeps but not giving internet access",
+        "category": "Network",
+        "priority": "Medium",
+        "department": "Network Services",
+        "reason": "The user is unable to obtain internet access despite the device producing indicator sounds. This indicates a network connectivity issue affecting this user or device, warranting Medium priority as there is no evidence of a campus-wide outage.",
+        "status": "Open"
+    },
+    {
+        "id": "TKT-016",
+        "title": "Router",
+        "description": "no internet access",
+        "category": "Network",
+        "priority": "Medium",
+        "department": "Information Technology Services",
+        "reason": "The ticket reports a loss of internet access, which is a network connectivity issue. Priority is set to Medium because it impacts usability, but there is no indication of a widespread campus outage.",
+        "status": "Open"
+    },
+    {
+        "id": "TKT-017",
+        "title": "Router",
+        "description": "no internet access",
+        "category": "Network",
+        "priority": "Medium",
+        "department": "IT Network Services",
+        "reason": "The ticket reports a lack of internet connectivity, which is a network issue. Priority is set to Medium because it affects connectivity but does not provide evidence of a campus-wide outage.",
+        "status": "Open"
+    },
+    {
+        "id": "TKT-018",
+        "title": "Router",
+        "description": "no internet access",
+        "category": "Network",
+        "priority": "Medium",
+        "department": "Information Technology Services",
+        "reason": "The ticket reports a lack of internet connectivity, which is a network issue. Medium priority is assigned because the scope of the outage (single user vs. campus-wide) is not specified.",
+        "status": "Resolved"
+    },
+    {
+        "id": "TKT-019",
+        "title": "Router",
+        "description": "Slow internet",
+        "category": "Unclassified",
+        "priority": "Unassigned",
+        "department": "Unassigned",
+        "reason": "Awaiting AI analysis",
+        "status": "In Progress"
+    },
+    {
+        "id": "TKT-020",
+        "title": "AC",
+        "description": "Not functional",
+        "category": "Unclassified",
+        "priority": "Unassigned",
+        "department": "Unassigned",
+        "reason": "Awaiting AI analysis",
+        "status": "Open"
+    },
+    {
+        "id": "TKT-021",
+        "title": "Windows",
+        "description": "Broken windows and doors",
+        "category": "Facilities",
+        "priority": "High",
+        "department": "Facilities Management / Campus Operations",
+        "reason": "Broken windows and doors pose an immediate security risk and physical safety hazard to the campus community, requiring prompt repair to secure the building.",
+        "status": "Open"
+    },
+    {
+        "id": "TKT-022",
+        "title": "Code Mentors",
+        "description": "Short in numbers for the population they are handling",
+        "category": "Other",
+        "priority": "Medium",
+        "department": "Human Resources / Administrative Services",
+        "reason": "The description refers to staffing levels rather than a technical or facility issue. The priority is set to Medium as it reflects an operational concern regarding workload capacity rather than an immediate system failure.",
+        "status": "Open"
     }
 ]

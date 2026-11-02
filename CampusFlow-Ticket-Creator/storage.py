@@ -8,6 +8,12 @@ def load_tickets():
             tickets = json.load(file)
 
             if isinstance(tickets, list):
+
+                # Give older tickets a default status
+                for ticket in tickets:
+                    if isinstance(ticket, dict):
+                        ticket.setdefault("status", "Open")
+
                 return tickets
 
             print("Warning: Ticket data must be a list.")

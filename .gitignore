@@ -13,3 +13,5 @@ venv/
 # Editor and system files
 .vscode/
 .DS_Store
+.streamlit/secrets.toml
+API_Key.txt
