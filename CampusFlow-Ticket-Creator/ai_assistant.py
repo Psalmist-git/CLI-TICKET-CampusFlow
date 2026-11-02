@@ -8,6 +8,7 @@ from functools import lru_cache
 
 import streamlit as st
 from google import genai
+from groq import Groq
 
 
 # =====================================================
@@ -271,46 +272,51 @@ def generate_gemini_response(prompt, model, temperature):
 # GROQ AND OPENROUTER
 # =====================================================
 
+def generate_groq_response(prompt, model, temperature):
+    api_key = get_setting("GROQ_API_KEY")
+
+    if not api_key:
+        raise ValueError("Groq API key is not configured.")
+
+    client = Groq(api_key=api_key)
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        temperature=temperature,
+        max_tokens=1800,
+    )
+
+    answer = response.choices[0].message.content
+
+    if not answer:
+        raise ValueError("Groq returned an empty response.")
+
+    return answer.strip()
+
+
 def generate_openai_compatible_response(
     prompt,
     provider,
     model,
     temperature
 ):
-
-    endpoints = {
-        "Groq": {
-            "key": "GROQ_API_KEY",
-            "url": "https://api.groq.com/openai/v1/chat/completions",
-        },
-
-        "OpenRouter": {
-            "key": "OPENROUTER_API_KEY",
-            "url": "https://openrouter.ai/api/v1/chat/completions",
-        },
-    }
-
-    settings = endpoints[provider]
-
-    api_key = get_setting(settings["key"])
+    api_key = get_setting("OPENROUTER_API_KEY")
 
     if not api_key:
-        raise ValueError(
-            f"{provider} API key is not configured."
-        )
+        raise ValueError("OpenRouter API key is not configured.")
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://cli-ticket-campusflow.onrender.com",
+        "X-Title": "CampusFlow",
     }
-
-    if provider == "OpenRouter":
-
-        headers["HTTP-Referer"] = (
-            "https://cli-ticket-campusflow.onrender.com"
-        )
-
-        headers["X-Title"] = "CampusFlow"
 
     payload = {
         "model": model,
@@ -325,10 +331,10 @@ def generate_openai_compatible_response(
     }
 
     return send_api_request(
-        settings["url"],
+        "https://openrouter.ai/api/v1/chat/completions",
         headers,
         payload,
-        provider
+        "OpenRouter"
     )
 
 
@@ -513,7 +519,15 @@ def generate_response(
                 temperature
             )
 
-        elif provider in {"Groq", "OpenRouter"}:
+                elif provider == "Groq":
+
+            answer = generate_groq_response(
+                prompt,
+                model,
+                temperature
+            )
+
+        elif provider == "OpenRouter":
 
             answer = generate_openai_compatible_response(
                 prompt,
