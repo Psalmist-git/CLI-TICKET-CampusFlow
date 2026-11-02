@@ -479,6 +479,7 @@ def send_api_request(url, headers, payload, provider):
 # UNIVERSAL AI RESPONSE ENGINE
 # =====================================================
 
+
 def generate_response(
     prompt,
     temperature=0.4,
@@ -519,7 +520,7 @@ def generate_response(
                 temperature
             )
 
-                elif provider == "Groq":
+        elif provider == "Groq":
 
             answer = generate_groq_response(
                 prompt,
