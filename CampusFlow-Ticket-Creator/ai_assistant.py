@@ -1,42 +1,186 @@
 import json
 import os
 import re
+import urllib.error
+import urllib.request
 from functools import lru_cache
 
+import streamlit as st
 from google import genai
 
 
 # =====================================================
-# GEMINI CONFIGURATION
+# AI PROVIDER CONFIGURATION
 # =====================================================
 
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+PROVIDERS = {
+    "Gemini": {
+        "key": "GEMINI_API_KEY",
+        "environment_variable": "GEMINI_API_KEY",
+        "models": [
+            "gemini-3.8-flash",
+            "gemini-flash-latest",
+        ],
+        "default": "gemini-3.8-flash",
+        "default_model": "gemini-3.8-flash",
+    },
+
+    "Groq": {
+        "key": "GROQ_API_KEY",
+        "environment_variable": "GROQ_API_KEY",
+        "models": [
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b",
+        ],
+        "default": "openai/gpt-oss-120b",
+        "default_model": "openai/gpt-oss-120b",
+    },
+
+    "Claude": {
+        "key": "ANTHROPIC_API_KEY",
+        "environment_variable": "ANTHROPIC_API_KEY",
+        "models": [
+            "claude-sonnet-5",
+            "claude-sonnet-4-6",
+            "claude-haiku-4-5-20251001",
+        ],
+        "default": "claude-sonnet-4-6",
+        "default_model": "claude-sonnet-4-6",
+    },
+
+    "OpenRouter": {
+        "key": "OPENROUTER_API_KEY",
+        "environment_variable": "OPENROUTER_API_KEY",
+        "models": [
+            "openai/gpt-oss-120b",
+            "anthropic/claude-sonnet-4-6",
+            "google/gemini-3.8-flash",
+        ],
+        "default": "openai/gpt-oss-120b",
+        "default_model": "openai/gpt-oss-120b",
+    },
+}
+
+DEFAULT_PROVIDER = "Gemini"
 
 
-@lru_cache(maxsize=1)
+# =====================================================
+# API KEY MANAGEMENT
+# =====================================================
+
+def get_setting(name):
+    """Read API keys securely from environment or Streamlit secrets."""
+
+    value = os.getenv(name)
+
+    if value:
+        return value
+
+    try:
+        return st.secrets[name]
+    except Exception:
+        return None
+
+
+def get_selected_provider():
+    provider = st.session_state.get(
+        "ai_provider",
+        DEFAULT_PROVIDER
+    )
+
+    if provider not in PROVIDERS:
+        return DEFAULT_PROVIDER
+
+    return provider
+
+
+def get_selected_model():
+    provider = get_selected_provider()
+    config = PROVIDERS[provider]
+
+    model = st.session_state.get(
+        f"ai_model_{provider}",
+        config["default_model"]
+    )
+
+    if model not in config["models"]:
+        return config["default_model"]
+
+    return model
+
+
+# =====================================================
+# SIDEBAR AI PROVIDER SELECTOR
+# =====================================================
+
+def render_ai_provider_selector():
+
+    st.markdown("### 🤖 AI Configuration")
+
+    provider_names = list(PROVIDERS.keys())
+
+    current_provider = get_selected_provider()
+
+    provider = st.selectbox(
+        "Choose AI Provider",
+        provider_names,
+        index=provider_names.index(current_provider),
+        key="ai_provider"
+    )
+
+    config = PROVIDERS[provider]
+
+    model_key = f"ai_model_{provider}"
+
+    current_model = st.session_state.get(
+        model_key,
+        config["default_model"]
+    )
+
+    if current_model not in config["models"]:
+        current_model = config["default_model"]
+
+    st.selectbox(
+        "Choose AI Model",
+        config["models"],
+        index=config["models"].index(current_model),
+        key=model_key
+    )
+
+    api_key = get_setting(config["environment_variable"])
+
+    if api_key:
+        st.success(f"{provider} API key configured")
+    else:
+        st.warning(f"{provider} API key not configured")
+
+    st.caption(
+        "Your selected provider powers ticket intelligence, "
+        "troubleshooting and the CampusFlow chatbot."
+    )
+
+
+# =====================================================
+# GEMINI
+# =====================================================
+
+@lru_cache(maxsize=4)
 def create_gemini_client(api_key):
-    """Create and reuse the Gemini client."""
     return genai.Client(api_key=api_key)
 
 
-def get_gemini_client():
-    """Retrieve the Gemini client using the configured API key."""
-    api_key = os.getenv("GEMINI_API_KEY")
+def generate_gemini_response(prompt, model, temperature):
+
+    api_key = get_setting("GEMINI_API_KEY")
 
     if not api_key:
-        raise ValueError(
-            "GEMINI_API_KEY is missing. Configure your Gemini API key."
-        )
+        raise ValueError("Gemini API key is not configured.")
 
-    return create_gemini_client(api_key)
-
-
-def generate_response(prompt, temperature=0.4):
-    """Send a prompt to Gemini and return its text response."""
-    client = get_gemini_client()
+    client = create_gemini_client(api_key)
 
     response = client.models.generate_content(
-        model=MODEL_NAME,
+        model=model,
         contents=prompt,
         config={
             "temperature": temperature,
@@ -53,11 +197,237 @@ def generate_response(prompt, temperature=0.4):
 
 
 # =====================================================
+# GROQ AND OPENROUTER
+# =====================================================
+
+def generate_openai_compatible_response(
+    prompt,
+    provider,
+    model,
+    temperature
+):
+
+    endpoints = {
+        "Groq": {
+            "key": "GROQ_API_KEY",
+            "url": "https://api.groq.com/openai/v1/chat/completions",
+        },
+
+        "OpenRouter": {
+            "key": "OPENROUTER_API_KEY",
+            "url": "https://openrouter.ai/api/v1/chat/completions",
+        },
+    }
+
+    settings = endpoints[provider]
+
+    api_key = get_setting(settings["key"])
+
+    if not api_key:
+        raise ValueError(
+            f"{provider} API key is not configured."
+        )
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    if provider == "OpenRouter":
+        headers["HTTP-Referer"] = (
+            "https://cli-ticket-campusflow.onrender.com"
+        )
+        headers["X-Title"] = "CampusFlow"
+
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        "temperature": temperature,
+        "max_tokens": 1800,
+    }
+
+    return send_api_request(
+        settings["url"],
+        headers,
+        payload,
+        provider
+    )
+
+
+# =====================================================
+# CLAUDE
+# =====================================================
+
+def generate_claude_response(prompt, model, temperature):
+
+    api_key = get_setting("ANTHROPIC_API_KEY")
+
+    if not api_key:
+        raise ValueError("Claude API key is not configured.")
+
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": model,
+        "max_tokens": 1800,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+    }
+
+    return send_api_request(
+        "https://api.anthropic.com/v1/messages",
+        headers,
+        payload,
+        "Claude"
+    )
+
+
+# =====================================================
+# SHARED HTTP REQUEST HANDLER
+# =====================================================
+
+def send_api_request(url, headers, payload, provider):
+
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST"
+    )
+
+    try:
+
+        with urllib.request.urlopen(
+            request,
+            timeout=90
+        ) as response:
+
+            result = json.loads(
+                response.read().decode("utf-8")
+            )
+
+    except urllib.error.HTTPError as error:
+
+        error.read()
+
+        raise RuntimeError(
+            f"{provider} API request failed. "
+            f"HTTP status: {error.code}"
+        )
+
+    except urllib.error.URLError:
+
+        raise RuntimeError(
+            f"Unable to connect to {provider}. "
+            "Please try again later."
+        )
+
+    if provider == "Claude":
+
+        content = result.get("content", [])
+
+        text_parts = [
+            item.get("text", "")
+            for item in content
+            if item.get("type") == "text"
+        ]
+
+        answer = "\n".join(text_parts)
+
+    else:
+
+        choices = result.get("choices", [])
+
+        if not choices:
+            raise ValueError(
+                f"{provider} returned no response."
+            )
+
+        answer = (
+            choices[0]
+            .get("message", {})
+            .get("content", "")
+        )
+
+    if not answer:
+        raise ValueError(
+            f"{provider} returned an empty response."
+        )
+
+    return answer.strip()
+
+
+# =====================================================
+# UNIVERSAL AI RESPONSE ENGINE
+# =====================================================
+
+def generate_response(
+    prompt,
+    temperature=0.4,
+    provider=None,
+    model=None
+):
+
+    provider = provider or get_selected_provider()
+
+    if provider not in PROVIDERS:
+        raise ValueError("Unsupported AI provider.")
+
+    if model is None:
+        model = st.session_state.get(
+            f"ai_model_{provider}",
+            PROVIDERS[provider]["default_model"]
+        )
+
+    if model not in PROVIDERS[provider]["models"]:
+        model = PROVIDERS[provider]["default_model"]
+
+    if provider == "Gemini":
+
+        return generate_gemini_response(
+            prompt,
+            model,
+            temperature
+        )
+
+    if provider in {"Groq", "OpenRouter"}:
+
+        return generate_openai_compatible_response(
+            prompt,
+            provider,
+            model,
+            temperature
+        )
+
+    if provider == "Claude":
+
+        return generate_claude_response(
+            prompt,
+            model,
+            temperature
+        )
+
+    raise ValueError("Unsupported AI provider selected.")
+
+
+# =====================================================
 # JSON EXTRACTION
 # =====================================================
 
 def extract_json(response_text):
-    """Extract a JSON object from Gemini's response."""
 
     cleaned = response_text.strip()
 
@@ -68,10 +438,15 @@ def extract_json(response_text):
         flags=re.IGNORECASE
     )
 
-    cleaned = re.sub(r"\s*```$", "", cleaned)
+    cleaned = re.sub(
+        r"\s*```$",
+        "",
+        cleaned
+    )
 
     try:
         return json.loads(cleaned)
+
     except json.JSONDecodeError:
         pass
 
@@ -79,26 +454,24 @@ def extract_json(response_text):
     end = cleaned.rfind("}")
 
     if start == -1 or end == -1:
-        raise ValueError("Gemini did not return valid JSON.")
+        raise ValueError(
+            "The AI did not return valid JSON."
+        )
 
-    return json.loads(cleaned[start:end + 1])
+    return json.loads(
+        cleaned[start:end + 1]
+    )
 
 
 # =====================================================
 # MODULE 1: TICKET INTELLIGENCE
 # =====================================================
 
-def get_ticket_intelligence(description):
-    """
-    Analyse a campus support problem.
-
-    Returns:
-        category
-        priority
-        department
-        reason
-        recommended_action
-    """
+def get_ticket_intelligence(
+    description,
+    provider=None,
+    model=None
+):
 
     if not description or not description.strip():
         return None
@@ -106,66 +479,59 @@ def get_ticket_intelligence(description):
     prompt = f"""
 You are the CampusFlow Ticket Intelligence Engine.
 
-You analyse university and campus support problems.
-
-Analyse the following problem carefully:
+Analyse this university or campus support problem:
 
 TICKET DESCRIPTION:
 {description.strip()}
 
-Choose exactly one category from:
-- Network
-- Hardware
-- Software
-- Facilities
-- Other
+Choose exactly one category:
+Network, Hardware, Software, Facilities, Other.
 
-Choose exactly one priority from:
-- Critical
-- High
-- Medium
-- Low
+Choose exactly one priority:
+Critical, High, Medium, Low.
 
-Identify the most appropriate responsible department.
+Identify the responsible department.
 
 Priority guidelines:
 
 CRITICAL:
 Immediate danger, serious security incident, major outage
-or a problem affecting essential campus operations.
+or essential campus operations affected.
 
 HIGH:
-A serious problem affecting multiple students or an
+Serious problem affecting multiple students or an
 important university service.
 
 MEDIUM:
-A problem affecting an individual or a limited group
-but not causing an emergency.
+Problem affecting an individual or limited group
+without an emergency.
 
 LOW:
-Minor inconvenience, general request or non-urgent issue.
+Minor inconvenience or non-urgent request.
 
-Return ONLY a valid JSON object in this structure:
+Return ONLY valid JSON:
 
 {{
     "category": "Network",
     "priority": "High",
     "department": "ICT Department",
-    "reason": "Explain why this category and priority were selected.",
-    "recommended_action": "Explain the immediate recommended action."
+    "reason": "Explain the classification.",
+    "recommended_action": "Explain the immediate action."
 }}
 
 Rules:
-- Do not invent facts that are not in the description.
-- Do not exaggerate the urgency.
-- Explain your classification clearly.
+- Do not invent facts.
+- Do not exaggerate urgency.
 - Return valid JSON only.
 """
 
     try:
+
         raw_response = generate_response(
             prompt,
-            temperature=0.2
+            temperature=0.2,
+            provider=provider,
+            model=model
         )
 
         result = extract_json(raw_response)
@@ -185,8 +551,13 @@ Rules:
             "Low"
         }
 
-        category = str(result.get("category", "Other")).strip()
-        priority = str(result.get("priority", "Medium")).strip()
+        category = str(
+            result.get("category", "Other")
+        ).strip()
+
+        priority = str(
+            result.get("priority", "Medium")
+        ).strip()
 
         if category not in allowed_categories:
             category = "Other"
@@ -198,94 +569,101 @@ Rules:
             "category": category,
             "priority": priority,
             "department": str(
-                result.get("department", "General Support")
+                result.get(
+                    "department",
+                    "General Support"
+                )
             ),
             "reason": str(
-                result.get("reason", "No explanation provided.")
+                result.get(
+                    "reason",
+                    "No explanation provided."
+                )
             ),
             "recommended_action": str(
                 result.get(
                     "recommended_action",
-                    "Refer the issue to the appropriate support department."
+                    "Refer to the appropriate support department."
                 )
             )
         }
 
     except Exception as error:
-        print(f"Ticket intelligence error: {error}")
+
+        print(
+            f"Ticket intelligence error: {error}"
+        )
+
         return None
 
 
 # =====================================================
-# MODULE 2: AI SUGGESTIONS
+# MODULE 2: AI TROUBLESHOOTING SUGGESTIONS
 # =====================================================
 
-def get_ai_suggestions(description):
-    """
-    Generate practical troubleshooting recommendations
-    for a campus support problem.
-    """
+def get_ai_suggestions(
+    description,
+    provider=None,
+    model=None
+):
 
     if not description or not description.strip():
-        return "Please describe the problem so I can provide suggestions."
+        return "Please describe the problem first."
 
     prompt = f"""
 You are the CampusFlow AI Troubleshooting Specialist.
 
-Your responsibility is to help students, lecturers,
-administrators and university support staff resolve campus problems.
-
 PROBLEM:
 {description.strip()}
 
-Provide a useful, practical response using this structure:
+Provide a practical response using this structure:
 
 ## 1. Understanding the Problem
-Briefly explain what may be happening.
+Explain what may be happening.
 
 ## 2. Possible Causes
-Identify the most likely causes.
-Do not claim that an unverified cause is certain.
+Identify likely causes without presenting guesses as facts.
 
 ## 3. Recommended Solutions
 Give at least three numbered troubleshooting steps.
-
-Each step must:
-- Be clear and practical.
-- Explain exactly what the user should do.
-- Be suitable for a non-technical student where possible.
+Make each step practical and easy to follow.
 
 ## 4. When to Escalate
 Explain when the user should contact the responsible
 university department and what information to provide.
 
 ## 5. Prevention
-Give practical advice to reduce the chance of the
-problem happening again.
+Give practical advice to prevent recurrence.
 
-IMPORTANT RULES:
-- Never request passwords or private login credentials.
+IMPORTANT:
+- Never request passwords or private credentials.
 - Never recommend bypassing university security.
-- Never claim that you have fixed the problem.
+- Never claim you have fixed the problem.
 - Do not invent university policies or contact details.
-- If the issue involves electrical danger, physical danger
-  or an urgent security incident, advise the user to contact
-  the appropriate university emergency or support personnel.
-- Keep the response professional and easy to understand.
+- Escalate physical danger and urgent security incidents
+  to appropriate university personnel.
+- Use clear, professional language.
 """
 
     try:
+
         return generate_response(
             prompt,
-            temperature=0.5
+            temperature=0.5,
+            provider=provider,
+            model=model
         )
 
     except Exception as error:
-        print(f"AI suggestions error: {error}")
+
+        print(
+            f"AI suggestions error: {error}"
+        )
 
         return (
-            "CampusFlow AI could not generate suggestions right now. "
-            "Please check your Gemini API configuration and try again."
+            "CampusFlow could not generate suggestions. "
+            "Please check the selected provider's API key "
+            "and try again."
         )
 
 
@@ -294,10 +672,11 @@ IMPORTANT RULES:
 # =====================================================
 
 def prepare_ticket_context(tickets):
-    """Prepare a safe, concise summary of recent ticket records."""
 
     if not tickets:
-        return "No ticket records are currently available."
+        return (
+            "No ticket records are currently available."
+        )
 
     summaries = []
 
@@ -306,20 +685,36 @@ def prepare_ticket_context(tickets):
         if not isinstance(ticket, dict):
             continue
 
-        summary = {
+        summaries.append({
             "ticket_id": ticket.get(
                 "ticket_id",
                 ticket.get("id", "Unknown")
             ),
-            "title": ticket.get("title", "Untitled"),
-            "description": ticket.get("description", ""),
-            "category": ticket.get("category", "Unclassified"),
-            "priority": ticket.get("priority", "Unassigned"),
-            "status": ticket.get("status", "Unknown"),
-            "department": ticket.get("department", "Unassigned")
-        }
-
-        summaries.append(summary)
+            "title": ticket.get(
+                "title",
+                "Untitled"
+            ),
+            "description": ticket.get(
+                "description",
+                ""
+            ),
+            "category": ticket.get(
+                "category",
+                "Unclassified"
+            ),
+            "priority": ticket.get(
+                "priority",
+                "Unassigned"
+            ),
+            "status": ticket.get(
+                "status",
+                "Unknown"
+            ),
+            "department": ticket.get(
+                "department",
+                "Unassigned"
+            )
+        })
 
     return json.dumps(
         summaries,
@@ -328,15 +723,17 @@ def prepare_ticket_context(tickets):
     )
 
 
-def get_chatbot_response(messages, tickets=None):
-    """
-    Generate a context-aware chatbot response.
-
-    Uses recent conversation history and available ticket records.
-    """
+def get_chatbot_response(
+    messages,
+    tickets=None,
+    provider=None,
+    model=None
+):
 
     if not messages:
-        return "Hello! How can I help you with campus support today?"
+        return (
+            "Hello! How can I help you with campus support today?"
+        )
 
     ticket_context = prepare_ticket_context(tickets)
 
@@ -348,7 +745,10 @@ def get_chatbot_response(messages, tickets=None):
             continue
 
         role = message.get("role", "user")
-        content = str(message.get("content", "")).strip()
+
+        content = str(
+            message.get("content", "")
+        ).strip()
 
         if not content:
             continue
@@ -360,7 +760,9 @@ def get_chatbot_response(messages, tickets=None):
             f"{role.upper()}: {content[:2000]}"
         )
 
-    conversation_history = "\n\n".join(conversation)
+    conversation_history = "\n\n".join(
+        conversation
+    )
 
     prompt = f"""
 You are CampusFlow AI, an intelligent university campus
@@ -369,10 +771,10 @@ support assistant.
 YOUR RESPONSIBILITIES:
 1. Answer campus support questions.
 2. Explain ticket creation and management.
-3. Help users understand ticket priorities and statuses.
+3. Explain ticket priorities and statuses.
 4. Provide practical troubleshooting guidance.
-5. Use available ticket records to answer relevant questions.
-6. Help users understand which support department may be responsible.
+5. Use available ticket records when relevant.
+6. Explain which support department may be responsible.
 
 AVAILABLE CAMPUS TICKET RECORDS:
 {ticket_context}
@@ -381,31 +783,37 @@ RECENT CONVERSATION:
 {conversation_history}
 
 IMPORTANT RULES:
-
 - Be friendly, professional and helpful.
-- Give direct answers before adding explanations.
-- Use the available ticket records when relevant.
+- Give direct answers before explanations.
 - Never invent ticket IDs or ticket information.
-- Never claim to have created, updated, assigned or resolved a ticket.
-- You may explain how a user can perform those actions in CampusFlow.
-- Never request passwords or sensitive login credentials.
+- Never claim to have created, updated, assigned or
+  resolved a ticket.
+- Explain how users can perform those actions.
+- Never request passwords or sensitive credentials.
 - If information is unavailable, say so honestly.
 - Keep answers organised and easy to understand.
-- Remember the context of the conversation when answering follow-up questions.
+- Remember the conversation context.
 
 Respond to the latest user message.
 """
 
     try:
+
         return generate_response(
             prompt,
-            temperature=0.6
+            temperature=0.6,
+            provider=provider,
+            model=model
         )
 
     except Exception as error:
-        print(f"CampusFlow chatbot error: {error}")
+
+        print(
+            f"CampusFlow chatbot error: {error}"
+        )
 
         return (
-            "I'm sorry, CampusFlow AI is temporarily unable to respond. "
-            "Please check the Gemini API configuration and try again."
+            "CampusFlow AI is temporarily unable to respond. "
+            "Please check the selected provider's API key "
+            "and try again."
         )

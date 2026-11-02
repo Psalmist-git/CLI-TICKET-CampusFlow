@@ -13,7 +13,8 @@ from ticket_manager import generate_ticket_id
 from ai_assistant import (
     get_ai_suggestions,
     get_ticket_intelligence,
-    get_chatbot_response
+    get_chatbot_response,
+    render_ai_provider_selector
 )
 from news_feed import get_education_news
 
@@ -1126,6 +1127,11 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # AI PROVIDER AND MODEL SELECTION
+    render_ai_provider_selector()
+
+    st.markdown("---")
+
     st.html("""
     <div class="sidebar-section-label">
         Workspace
@@ -1141,7 +1147,8 @@ with st.sidebar:
             "🤖 AI Assistant",
             "📊 Reports"
         ],
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        key="main_navigation"
     )
 
     st.markdown("---")
@@ -1155,13 +1162,11 @@ with st.sidebar:
 
         <div class="sidebar-footer-text">
             Intelligent campus support and ticket management,
-            powered by Gemini.
+            powered by multiple AI providers.
         </div>
 
     </div>
     """)
-
-
 # =====================================================
 # LOAD TICKETS
 # =====================================================
