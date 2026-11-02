@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import urllib.error
@@ -7,6 +8,19 @@ from functools import lru_cache
 
 import streamlit as st
 from google import genai
+
+
+# =====================================================
+# LOGGING
+# =====================================================
+
+logger = logging.getLogger("campusflow.ai")
+
+if not logger.handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
 
 
 # =====================================================
@@ -70,7 +84,7 @@ DEFAULT_PROVIDER = "Gemini"
 # =====================================================
 
 def get_setting(name):
-    """Read API keys securely from environment or Streamlit secrets."""
+    """Read a setting securely from environment or Streamlit secrets."""
 
     value = os.getenv(name)
 
@@ -84,6 +98,7 @@ def get_setting(name):
 
 
 def get_selected_provider():
+
     provider = st.session_state.get(
         "ai_provider",
         DEFAULT_PROVIDER
@@ -96,6 +111,7 @@ def get_selected_provider():
 
 
 def get_selected_model():
+
     provider = get_selected_provider()
     config = PROVIDERS[provider]
 
@@ -108,6 +124,56 @@ def get_selected_model():
         return config["default_model"]
 
     return model
+
+
+# =====================================================
+# SAFE ERROR DIAGNOSTICS
+# =====================================================
+
+def safe_error_text(message):
+    """
+    Remove configured API keys from error messages
+    before writing diagnostic information to logs.
+    """
+
+    text = str(message)
+
+    for key_name in (
+        "GEMINI_API_KEY",
+        "GROQ_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "OPENROUTER_API_KEY",
+    ):
+        secret = get_setting(key_name)
+
+        if secret:
+            text = text.replace(str(secret), "[REDACTED]")
+
+    return text[:2000]
+
+
+def extract_provider_error(error_body):
+    """Extract a readable error message from provider JSON."""
+
+    try:
+        data = json.loads(error_body)
+
+        error = data.get("error", data)
+
+        if isinstance(error, dict):
+            message = (
+                error.get("message")
+                or error.get("detail")
+                or error.get("type")
+            )
+
+            if message:
+                return str(message)
+
+        return json.dumps(data)[:1500]
+
+    except (json.JSONDecodeError, TypeError):
+        return str(error_body)[:1500]
 
 
 # =====================================================
@@ -167,6 +233,7 @@ def render_ai_provider_selector():
 
 @lru_cache(maxsize=4)
 def create_gemini_client(api_key):
+
     return genai.Client(api_key=api_key)
 
 
@@ -175,7 +242,9 @@ def generate_gemini_response(prompt, model, temperature):
     api_key = get_setting("GEMINI_API_KEY")
 
     if not api_key:
-        raise ValueError("Gemini API key is not configured.")
+        raise ValueError(
+            "Gemini API key is not configured."
+        )
 
     client = create_gemini_client(api_key)
 
@@ -191,7 +260,9 @@ def generate_gemini_response(prompt, model, temperature):
     result = response.text
 
     if not result:
-        raise ValueError("Gemini returned an empty response.")
+        raise ValueError(
+            "Gemini returned an empty response."
+        )
 
     return result.strip()
 
@@ -234,9 +305,11 @@ def generate_openai_compatible_response(
     }
 
     if provider == "OpenRouter":
+
         headers["HTTP-Referer"] = (
             "https://cli-ticket-campusflow.onrender.com"
         )
+
         headers["X-Title"] = "CampusFlow"
 
     payload = {
@@ -268,7 +341,9 @@ def generate_claude_response(prompt, model, temperature):
     api_key = get_setting("ANTHROPIC_API_KEY")
 
     if not api_key:
-        raise ValueError("Claude API key is not configured.")
+        raise ValueError(
+            "Claude API key is not configured."
+        )
 
     headers = {
         "x-api-key": api_key,
@@ -315,26 +390,49 @@ def send_api_request(url, headers, payload, provider):
             timeout=90
         ) as response:
 
-            result = json.loads(
-                response.read().decode("utf-8")
-            )
+            response_body = response.read().decode("utf-8")
+
+            result = json.loads(response_body)
 
     except urllib.error.HTTPError as error:
 
-        error.read()
-
-        raise RuntimeError(
-            f"{provider} API request failed. "
-            f"HTTP status: {error.code}"
+        error_body = error.read().decode(
+            "utf-8",
+            errors="replace"
         )
 
-    except urllib.error.URLError:
-
-        raise RuntimeError(
-            f"Unable to connect to {provider}. "
-            "Please try again later."
+        provider_message = extract_provider_error(
+            error_body
         )
 
+        diagnostic = safe_error_text(provider_message)
+
+        raise RuntimeError(
+            f"{provider} API returned HTTP {error.code}: "
+            f"{diagnostic}"
+        ) from None
+
+    except urllib.error.URLError as error:
+
+        reason = safe_error_text(error.reason)
+
+        raise RuntimeError(
+            f"{provider} connection failed: {reason}"
+        ) from None
+
+    except TimeoutError:
+
+        raise RuntimeError(
+            f"{provider} request timed out after 90 seconds."
+        ) from None
+
+    except json.JSONDecodeError:
+
+        raise RuntimeError(
+            f"{provider} returned an invalid JSON response."
+        ) from None
+
+    # Extract Claude response.
     if provider == "Claude":
 
         content = result.get("content", [])
@@ -347,13 +445,14 @@ def send_api_request(url, headers, payload, provider):
 
         answer = "\n".join(text_parts)
 
+    # Extract Groq and OpenRouter responses.
     else:
 
         choices = result.get("choices", [])
 
         if not choices:
             raise ValueError(
-                f"{provider} returned no response."
+                f"{provider} returned no response choices."
             )
 
         answer = (
@@ -384,9 +483,12 @@ def generate_response(
     provider = provider or get_selected_provider()
 
     if provider not in PROVIDERS:
-        raise ValueError("Unsupported AI provider.")
+        raise ValueError(
+            "Unsupported AI provider."
+        )
 
     if model is None:
+
         model = st.session_state.get(
             f"ai_model_{provider}",
             PROVIDERS[provider]["default_model"]
@@ -395,32 +497,65 @@ def generate_response(
     if model not in PROVIDERS[provider]["models"]:
         model = PROVIDERS[provider]["default_model"]
 
-    if provider == "Gemini":
+    logger.info(
+        "AI request started | provider=%s | model=%s",
+        provider,
+        model
+    )
 
-        return generate_gemini_response(
-            prompt,
-            model,
-            temperature
+    try:
+
+        if provider == "Gemini":
+
+            answer = generate_gemini_response(
+                prompt,
+                model,
+                temperature
+            )
+
+        elif provider in {"Groq", "OpenRouter"}:
+
+            answer = generate_openai_compatible_response(
+                prompt,
+                provider,
+                model,
+                temperature
+            )
+
+        elif provider == "Claude":
+
+            answer = generate_claude_response(
+                prompt,
+                model,
+                temperature
+            )
+
+        else:
+            raise ValueError(
+                "Unsupported AI provider selected."
+            )
+
+        logger.info(
+            "AI request successful | provider=%s | model=%s",
+            provider,
+            model
         )
 
-    if provider in {"Groq", "OpenRouter"}:
+        return answer
 
-        return generate_openai_compatible_response(
-            prompt,
+    except Exception as error:
+
+        diagnostic = safe_error_text(error)
+
+        logger.error(
+            "AI request failed | provider=%s | model=%s | error=%s",
             provider,
             model,
-            temperature
+            diagnostic,
+            exc_info=True
         )
 
-    if provider == "Claude":
-
-        return generate_claude_response(
-            prompt,
-            model,
-            temperature
-        )
-
-    raise ValueError("Unsupported AI provider selected.")
+        raise
 
 
 # =====================================================
@@ -590,8 +725,9 @@ Rules:
 
     except Exception as error:
 
-        print(
-            f"Ticket intelligence error: {error}"
+        logger.error(
+            "Ticket intelligence failed: %s",
+            safe_error_text(error)
         )
 
         return None
@@ -656,14 +792,14 @@ IMPORTANT:
 
     except Exception as error:
 
-        print(
-            f"AI suggestions error: {error}"
+        logger.error(
+            "AI suggestions failed: %s",
+            safe_error_text(error)
         )
 
         return (
             "CampusFlow could not generate suggestions. "
-            "Please check the selected provider's API key "
-            "and try again."
+            "Please check the selected provider and try again."
         )
 
 
@@ -808,12 +944,13 @@ Respond to the latest user message.
 
     except Exception as error:
 
-        print(
-            f"CampusFlow chatbot error: {error}"
+        logger.error(
+            "CampusFlow chatbot failed: %s",
+            safe_error_text(error)
         )
 
         return (
-            "CampusFlow AI is temporarily unable to respond. "
-            "Please check the selected provider's API key "
-            "and try again."
+            "CampusFlow AI could not complete your request. "
+            "The technical error has been recorded. "
+            "Please try again shortly."
         )
