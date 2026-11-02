@@ -249,23 +249,60 @@ def generate_gemini_response(prompt, model, temperature):
 
     client = create_gemini_client(api_key)
 
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config={
-            "temperature": temperature,
-            "max_output_tokens": 1800,
-        }
+    # Try the selected model first, then the fallback.
+    models_to_try = [
+        model,
+        "gemini-flash-latest",
+    ]
+
+    # Remove duplicate model names.
+    models_to_try = list(dict.fromkeys(models_to_try))
+
+    last_error = None
+
+    for selected_model in models_to_try:
+
+        for attempt in range(2):
+
+            try:
+
+                response = client.models.generate_content(
+                    model=selected_model,
+                    contents=prompt,
+                    config={
+                        "temperature": temperature,
+                        "max_output_tokens": 1800,
+                    }
+                )
+
+                result = response.text
+
+                if result:
+                    return result.strip()
+
+                raise ValueError(
+                    "Gemini returned an empty response."
+                )
+
+            except Exception as error:
+
+                last_error = error
+
+                logger.warning(
+                    "Gemini request failed | model=%s | attempt=%s | error=%s",
+                    selected_model,
+                    attempt + 1,
+                    safe_error_text(error)
+                )
+
+                # Retry temporary failures.
+                if attempt == 0:
+                    import time
+                    time.sleep(2)
+
+    raise RuntimeError(
+        f"Gemini failed with all available attempts: {safe_error_text(last_error)}"
     )
-
-    result = response.text
-
-    if not result:
-        raise ValueError(
-            "Gemini returned an empty response."
-        )
-
-    return result.strip()
 
 
 # =====================================================
