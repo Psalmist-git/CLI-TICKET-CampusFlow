@@ -325,5 +325,4 @@ def get_library_news():
 
 # Backward compatibility:
 # Existing app.py calls to get_education_news() will still work.
-def get_education_news():
-    return get_library_news()
+get_education_news = get_library_news
