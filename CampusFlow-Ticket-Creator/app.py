@@ -3,6 +3,7 @@ from html import escape
 from datetime import datetime
 
 import streamlit as st
+import plotly.express as px
 
 from historical_classifier import classify_unclassified_tickets
 from reports import generate_dashboard_summary
@@ -735,29 +736,138 @@ def display_welcome_banner(title, subtitle):
     """)
 
 
+# =====================================================
+# CAMPUS PHOTO GALLERY — PHONE-STYLE CAROUSEL
+# =====================================================
+
 def display_campus_slideshow():
-    """Display the animated campus photography slideshow."""
+    """Display all campus photos in a swipeable horizontal gallery."""
 
-    st.html("""
-    <div class="campus-hero">
+    from pathlib import Path
+    import base64
+    import html
 
-        <div class="campus-hero-slide campus-slide-one"></div>
-        <div class="campus-hero-slide campus-slide-two"></div>
-        <div class="campus-hero-slide campus-slide-three"></div>
+    image_folder = Path("assets/campus")
 
-        <div class="campus-hero-content">
+    images = sorted(
+        [
+            file for file in image_folder.iterdir()
+            if file.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")
+        ]
+    ) if image_folder.exists() else []
 
-            <h2>Learning Beyond Boundaries 🌍</h2>
+    st.subheader("🏫 Explore Our Campus")
+    st.caption("Swipe or scroll to explore our campus gallery.")
 
-            <p>
-                Connecting students, knowledge and campus communities
-                through smarter technology.
-            </p>
+    if not images:
+        st.warning("No campus photographs were found.")
+        return
 
-        </div>
+    cards = []
 
+    for image_path in images:
+
+        image_data = base64.b64encode(
+            image_path.read_bytes()
+        ).decode("utf-8")
+
+        extension = image_path.suffix.lower()
+
+        mime_type = (
+            "image/jpeg" if extension in (".jpg", ".jpeg")
+            else f"image/{extension[1:]}"
+        )
+
+        image_name = html.escape(
+            image_path.stem.replace("_", " ").title()
+        )
+
+        cards.append(f"""
+            <div class="campus-photo-card">
+                <img
+                    src="data:{mime_type};base64,{image_data}"
+                    alt="{image_name}"
+                />
+                <div class="campus-photo-caption">
+                    {image_name}
+                </div>
+            </div>
+        """)
+
+    gallery_html = f"""
+    <style>
+        .campus-gallery {{
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 12px 4px 22px;
+            scroll-snap-type: x mandatory;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }}
+
+        .campus-gallery::-webkit-scrollbar {{
+            height: 7px;
+        }}
+
+        .campus-gallery::-webkit-scrollbar-thumb {{
+            background: #8b9aaa;
+            border-radius: 20px;
+        }}
+
+        .campus-photo-card {{
+            position: relative;
+            flex: 0 0 260px;
+            height: 190px;
+            overflow: hidden;
+            border-radius: 18px;
+            scroll-snap-align: start;
+            box-shadow: 0 5px 18px rgba(0,0,0,0.16);
+            transition: transform 0.3s ease;
+        }}
+
+        .campus-photo-card:hover {{
+            transform: translateY(-5px);
+        }}
+
+        .campus-photo-card img {{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }}
+
+        .campus-photo-caption {{
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 25px 14px 13px;
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            background: linear-gradient(
+                transparent,
+                rgba(0,0,0,0.8)
+            );
+        }}
+
+        @media (max-width: 600px) {{
+            .campus-photo-card {{
+                flex-basis: 82%;
+                height: 210px;
+            }}
+        }}
+    </style>
+
+    <div class="campus-gallery">
+        {''.join(cards)}
     </div>
-    """)
+    """
+
+    st.html(gallery_html)
+
+    st.caption(f"📸 {len(images)} campus photographs")
 
 
 # =====================================================
@@ -1062,6 +1172,182 @@ def render_floating_chat():
             st.session_state["floating_chat_messages"] = []
             st.rerun()
 
+# =====================================================
+# GLOBAL STOCK MARKET EVENTS SLIDESHOW
+# =====================================================
+
+def render_global_market_events():
+
+    events = [
+        {
+            "date": "October 1929",
+            "title": "The Wall Street Crash",
+            "description": (
+                "A major stock market collapse in the United States "
+                "that helped trigger the Great Depression."
+            ),
+            "impact": "Triggered widespread financial panic and economic hardship."
+        },
+        {
+            "date": "October 19, 1987",
+            "title": "Black Monday",
+            "description": (
+                "Stock markets around the world suffered a sudden crash. "
+                "The Dow Jones Industrial Average fell about 22% in one day."
+            ),
+            "impact": "One of the largest single-day percentage falls in stock market history."
+        },
+        {
+            "date": "1997",
+            "title": "The Asian Financial Crisis",
+            "description": (
+                "Currency and financial crises spread across several "
+                "Asian economies, affecting global markets."
+            ),
+            "impact": "Triggered financial instability across international markets."
+        },
+        {
+            "date": "2000–2002",
+            "title": "The Dot-com Bubble",
+            "description": (
+                "Technology stock valuations collapsed after years of "
+                "speculation surrounding internet companies."
+            ),
+            "impact": "Many technology companies lost substantial market value."
+        },
+        {
+            "date": "2007–2009",
+            "title": "The Global Financial Crisis",
+            "description": (
+                "A banking and credit crisis spread internationally, "
+                "causing severe disruption to financial markets."
+            ),
+            "impact": "Led to major bank failures, market declines and global recession."
+        },
+        {
+            "date": "February–March 2020",
+            "title": "The COVID-19 Market Crash",
+            "description": (
+                "Global stock markets fell sharply as the COVID-19 "
+                "pandemic disrupted economies and businesses."
+            ),
+            "impact": "Governments and central banks introduced emergency support measures."
+        },
+        {
+            "date": "2021",
+            "title": "The Meme Stock Phenomenon",
+            "description": (
+                "Retail investors coordinated through online communities, "
+                "causing dramatic price movements in stocks such as GameStop."
+            ),
+            "impact": "Highlighted the growing influence of individual investors and social media."
+        },
+        {
+            "date": "2022",
+            "title": "Inflation and Interest Rate Hikes",
+            "description": (
+                "High inflation pushed central banks, including the US Federal Reserve, "
+                "to raise interest rates, putting pressure on global stock markets."
+            ),
+            "impact": "Investors reassessed company valuations and economic growth expectations."
+        },
+    ]
+
+    st.subheader("🌍 Global Stock Market Events")
+
+    st.caption(
+        "Explore major historical events that shaped financial markets around the world."
+    )
+
+    if "market_event_index" not in st.session_state:
+        st.session_state.market_event_index = 0
+
+    index = st.session_state.market_event_index
+    event = events[index]
+
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, #102a43, #243b53);
+            padding: 25px;
+            border-radius: 14px;
+            color: white;
+            min-height: 210px;
+        ">
+            <p style="color: #ffd166; font-size: 14px;">
+                {event['date']} · EVENT {index + 1} OF {len(events)}
+            </p>
+            <h2 style="color: white;">{event['title']}</h2>
+            <p style="font-size: 16px; line-height: 1.6;">
+                {event['description']}
+            </p>
+            <hr style="border-color: #607d8b;">
+            <p style="font-size: 14px;">
+                <strong>Market impact:</strong> {event['impact']}
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.write("")
+
+    previous_col, counter_col, next_col = st.columns([1, 2, 1])
+
+    with previous_col:
+        if st.button("⬅ Previous", key="market_previous"):
+            st.session_state.market_event_index = (
+                index - 1
+            ) % len(events)
+            st.rerun()
+
+    with counter_col:
+        st.markdown(
+            f"<p style='text-align:center;'>"
+            f"Event {index + 1} / {len(events)}"
+            f"</p>",
+            unsafe_allow_html=True
+        )
+
+    with next_col:
+        if st.button("Next ➡", key="market_next"):
+            st.session_state.market_event_index = (
+                index + 1
+            ) % len(events)
+            st.rerun()
+
+# =====================================================
+# WORLD CLOCKS
+# =====================================================
+
+def render_world_clocks():
+
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    cities = [
+        ("🇳🇬 Lagos", "Africa/Lagos"),
+        ("🇬🇧 London", "Europe/London"),
+        ("🇩🇪 Berlin", "Europe/Berlin"),
+        ("🇺🇸 New York", "America/New_York"),
+        ("🇨🇳 Beijing", "Asia/Shanghai"),
+        ("🇦🇪 Dubai", "Asia/Dubai"),
+    ]
+
+    st.subheader("🌐 World Clocks")
+
+    columns = st.columns(3)
+
+    for index, (city, timezone) in enumerate(cities):
+
+        current_time = datetime.now(ZoneInfo(timezone))
+
+        with columns[index % 3]:
+            st.metric(
+                label=city,
+                value=current_time.strftime("%I:%M:%S %p"),
+                delta=current_time.strftime("%A, %d %B")
+            )
 
 # =====================================================
 # SIDEBAR NAVIGATION
@@ -1198,6 +1484,14 @@ if page == "🏠 Dashboard":
 
     display_campus_slideshow()
 
+    render_global_market_events()
+
+    st.divider()
+
+    render_world_clocks()
+
+    st.divider()
+
     render_global_education_news()
 
     st.divider()
@@ -1240,7 +1534,6 @@ if page == "🏠 Dashboard":
     performance_col1, performance_col2 = st.columns(2)
 
     with performance_col1:
-
         st.write("**AI Classification Progress**")
         st.progress(classification_rate / 100)
 
@@ -1250,7 +1543,6 @@ if page == "🏠 Dashboard":
         )
 
     with performance_col2:
-
         st.write("**Ticket Resolution Progress**")
         st.progress(resolution_rate / 100)
 
@@ -1265,29 +1557,133 @@ if page == "🏠 Dashboard":
 
     chart_col1, chart_col2 = st.columns(2)
 
+    # TICKET STATUS PIE CHART
     with chart_col1:
+        st.markdown("### 🎯 Ticket Status")
 
-        st.markdown("**Ticket Status Distribution**")
-        st.bar_chart(summary["statuses"])
+        if summary["statuses"]:
+            status_data = [
+                {"Status": status, "Tickets": count}
+                for status, count in summary["statuses"].items()
+                if count > 0
+            ]
 
+            status_fig = px.pie(
+                status_data,
+                names="Status",
+                values="Tickets",
+                hole=0.55,
+                title="Distribution by Status",
+                color_discrete_sequence=px.colors.qualitative.Set2
+            )
+
+            status_fig.update_traces(
+                textinfo="percent+label",
+                textposition="inside",
+                hovertemplate="%{label}<br>Tickets: %{value}<br>%{percent}<extra></extra>"
+            )
+
+            status_fig.update_layout(
+                showlegend=True,
+                legend_title_text="Status",
+                margin=dict(t=50, b=20, l=10, r=10),
+                height=350
+            )
+
+            st.plotly_chart(
+                status_fig,
+                use_container_width=True
+            )
+        else:
+            st.info("No ticket status data available.")
+
+    # TICKET PRIORITY PIE CHART
     with chart_col2:
+        st.markdown("### 🚦 Ticket Priority")
 
-        st.markdown("**Ticket Priority Distribution**")
-        st.bar_chart(summary["priorities"])
+        if summary["priorities"]:
+            priority_data = [
+                {"Priority": priority, "Tickets": count}
+                for priority, count in summary["priorities"].items()
+                if count > 0
+            ]
+
+            priority_fig = px.pie(
+                priority_data,
+                names="Priority",
+                values="Tickets",
+                hole=0.55,
+                title="Distribution by Priority",
+                color_discrete_sequence=px.colors.qualitative.Bold
+            )
+
+            priority_fig.update_traces(
+                textinfo="percent+label",
+                textposition="inside",
+                hovertemplate="%{label}<br>Tickets: %{value}<br>%{percent}<extra></extra>"
+            )
+
+            priority_fig.update_layout(
+                showlegend=True,
+                legend_title_text="Priority",
+                margin=dict(t=50, b=20, l=10, r=10),
+                height=350
+            )
+
+            st.plotly_chart(
+                priority_fig,
+                use_container_width=True
+            )
+        else:
+            st.info("No ticket priority data available.")
 
     st.divider()
 
+    # DEPARTMENT WORKLOAD
     st.subheader("🏢 Department Workload")
 
     if summary["departments"]:
+        department_data = [
+            {"Department": department, "Tickets": count}
+            for department, count in summary["departments"].items()
+        ]
 
-        st.bar_chart(
-            summary["departments"],
-            horizontal=True
+        department_data.sort(
+            key=lambda item: item["Tickets"],
+            reverse=True
         )
 
-    else:
+        department_fig = px.bar(
+            department_data,
+            x="Tickets",
+            y="Department",
+            orientation="h",
+            text="Tickets",
+            title="Tickets Handled by Department",
+            color="Tickets",
+            color_continuous_scale="Blues"
+        )
 
+        department_fig.update_traces(
+            textposition="outside",
+            hovertemplate="%{y}<br>Tickets: %{x}<extra></extra>"
+        )
+
+        department_fig.update_layout(
+            yaxis=dict(autorange="reversed"),
+            xaxis_title="Number of Tickets",
+            yaxis_title="Department",
+            showlegend=False,
+            coloraxis_showscale=False,
+            height=max(350, len(department_data) * 45),
+            margin=dict(l=20, r=40, t=60, b=30)
+        )
+
+        st.plotly_chart(
+            department_fig,
+            use_container_width=True
+        )
+    else:
         st.info(
             "Department statistics will appear when tickets are created."
         )
@@ -1297,7 +1693,6 @@ if page == "🏠 Dashboard":
     st.subheader("📋 Recent Tickets")
 
     if tickets:
-
         recent_tickets = list(reversed(tickets[-5:]))
 
         st.dataframe(
@@ -1305,9 +1700,7 @@ if page == "🏠 Dashboard":
             width="stretch",
             hide_index=True
         )
-
     else:
-
         st.info("No tickets have been created yet.")
 
 
@@ -1526,28 +1919,84 @@ elif page == "🎫 Create Ticket":
 # MANAGE TICKETS
 # =====================================================
 
+# =====================================================
+# TICKET MANAGEMENT AND STAFF ASSIGNMENT
+# =====================================================
+
 elif page == "🛠️ Manage Tickets":
+
+    from datetime import datetime
 
     display_welcome_banner(
         "Ticket Management 🛠️",
-        "Review submitted issues and keep ticket statuses up to date."
+        "Manage ticket statuses, assign staff and monitor workloads."
     )
 
     current_tickets = load_tickets()
 
     if current_tickets:
 
-        st.subheader("All Campus Support Tickets")
+        # STAFF FILTER
+        staff_members = sorted({
+            ticket.get("assigned_to", "Unassigned")
+            for ticket in current_tickets
+            if ticket.get("assigned_to", "Unassigned") != "Unassigned"
+        })
+
+        st.subheader("👥 Staff Workload")
+
+        workload_col1, workload_col2 = st.columns(2)
+
+        with workload_col1:
+            st.metric("Total Staff Assigned", len(staff_members))
+
+        with workload_col2:
+            assigned_count = sum(
+                1 for ticket in current_tickets
+                if ticket.get("assigned_to", "Unassigned") != "Unassigned"
+            )
+            st.metric("Assigned Tickets", assigned_count)
+
+        st.divider()
+
+        st.subheader("🔎 Filter Tickets")
+
+        filter_options = ["All Staff", "Unassigned"] + staff_members
+
+        selected_staff = st.selectbox(
+            "Filter by Assigned Staff",
+            filter_options,
+            key="staff_ticket_filter"
+        )
+
+        if selected_staff == "All Staff":
+            filtered_tickets = current_tickets
+
+        elif selected_staff == "Unassigned":
+            filtered_tickets = [
+                ticket for ticket in current_tickets
+                if ticket.get("assigned_to", "Unassigned") == "Unassigned"
+            ]
+
+        else:
+            filtered_tickets = [
+                ticket for ticket in current_tickets
+                if ticket.get("assigned_to") == selected_staff
+            ]
+
+        st.divider()
+
+        st.subheader("📋 All Campus Support Tickets")
 
         st.dataframe(
-            list(reversed(current_tickets)),
+            list(reversed(filtered_tickets)),
             width="stretch",
             hide_index=True
         )
 
         st.divider()
 
-        st.subheader("Update Ticket Status")
+        st.subheader("🛠️ Manage Individual Tickets")
 
         status_options = [
             "Open",
@@ -1555,14 +2004,9 @@ elif page == "🛠️ Manage Tickets":
             "Resolved"
         ]
 
-        for index in range(len(current_tickets) - 1, -1, -1):
+        for index, ticket in enumerate(reversed(filtered_tickets)):
 
-            ticket = current_tickets[index]
-
-            ticket_id = ticket.get(
-                "id",
-                f"Ticket {index + 1}"
-            )
+            ticket_id = ticket.get("id", f"Ticket {index + 1}")
 
             ticket_title = ticket.get(
                 "title",
@@ -1573,6 +2017,11 @@ elif page == "🛠️ Manage Tickets":
 
             if current_status not in status_options:
                 current_status = "Open"
+
+            assigned_to = ticket.get(
+                "assigned_to",
+                "Unassigned"
+            )
 
             with st.expander(
                 f"{ticket_id} — {ticket_title}"
@@ -1598,13 +2047,96 @@ elif page == "🛠️ Manage Tickets":
                     current_status
                 )
 
-                with st.form(f"status_form_{index}_{ticket_id}"):
+                st.write(
+                    "**Assigned Staff:**",
+                    assigned_to
+                )
+
+                st.write(
+                    "**Assignment Date:**",
+                    ticket.get("assigned_at", "Not yet assigned")
+                )
+
+                # STAFF ASSIGNMENT
+                st.markdown("#### 👤 Assign or Reassign Staff")
+
+                with st.form(f"assignment_form_{ticket_id}"):
+
+                    staff_name = st.text_input(
+                        "Staff Member's Name",
+                        value=(
+                            ""
+                            if assigned_to == "Unassigned"
+                            else assigned_to
+                        ),
+                        key=f"staff_name_{ticket_id}"
+                    )
+
+                    assignment_submitted = st.form_submit_button(
+                        "Save Staff Assignment"
+                    )
+
+                if assignment_submitted:
+
+                    staff_name = staff_name.strip()
+
+                    if not staff_name:
+
+                        st.error("Please enter a staff member's name.")
+
+                    else:
+
+                        assignment_data = {
+                            "assigned_to": staff_name
+                        }
+
+                        if staff_name != assigned_to:
+
+                            assignment_data["assigned_at"] = (
+                                datetime.now()
+                                .astimezone()
+                                .isoformat(timespec="minutes")
+                            )
+
+                        try:
+
+                            success = update_saved_ticket(
+                                ticket_id,
+                                assignment_data
+                            )
+
+                            if success:
+
+                                st.success(
+                                    f"{ticket_id} assigned to {staff_name}."
+                                )
+
+                                st.rerun()
+
+                            else:
+
+                                st.error("Ticket could not be found.")
+
+                        except Exception as error:
+
+                            st.error("Unable to save staff assignment.")
+
+                            print(
+                                f"Assignment error: {type(error).__name__}"
+                            )
+
+                st.divider()
+
+                # STATUS MANAGEMENT
+                st.markdown("#### 📌 Update Ticket Status")
+
+                with st.form(f"status_form_{ticket_id}"):
 
                     new_status = st.selectbox(
                         "Choose New Status",
                         status_options,
                         index=status_options.index(current_status),
-                        key=f"status_select_{index}_{ticket_id}"
+                        key=f"status_select_{ticket_id}"
                     )
 
                     status_submitted = st.form_submit_button(
@@ -1640,9 +2172,64 @@ elif page == "🛠️ Manage Tickets":
                             f"Status update error: {type(error).__name__}"
                         )
 
-    else:
+        # STAFF WORKLOAD VISUALISATIONS
+        st.divider()
+        st.subheader("📊 Staff Workload Analytics")
 
-        st.info("No tickets have been created yet.")
+        workload_data = []
+
+        for staff, count in staff_workload.items():
+            workload_data.append({
+                "Staff Member": staff,
+                "Tickets Assigned": count
+            })
+
+        if workload_data:
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("#### 🥧 Ticket Distribution")
+
+                pie_fig = px.pie(
+                    workload_data,
+                    names="Staff Member",
+                    values="Tickets Assigned",
+                    hole=0.45,
+                    title="Tickets Assigned per Staff"
+                )
+
+                pie_fig.update_traces(
+                    textposition="inside",
+                    textinfo="percent+label"
+                )
+
+                st.plotly_chart(
+                    pie_fig,
+                    use_container_width=True
+                )
+
+            with col2:
+                st.markdown("#### 📦 Workload Box Plot")
+
+                box_fig = px.box(
+                    workload_data,
+                    y="Tickets Assigned",
+                    points="all",
+                    title="Staff Workload Distribution"
+                )
+
+                box_fig.update_layout(
+                    yaxis_title="Number of Assigned Tickets",
+                    xaxis_title="Staff Workload",
+                    showlegend=False
+                )
+
+                st.plotly_chart(
+                    box_fig,
+                    use_container_width=True
+                )
+        else:
+            st.info("No staff workload data available yet.")
 
 
 
@@ -1966,12 +2553,54 @@ elif page == "📊 Reports":
     st.subheader("Ticket Priorities")
     st.bar_chart(summary["priorities"])
 
-    st.subheader("Department Workload")
+    st.subheader("🏢 Department Workload")
 
-    st.bar_chart(
-        summary["departments"],
-        horizontal=True
+if summary["departments"]:
+
+    department_data = [
+        {
+            "Department": department,
+            "Tickets": count
+        }
+        for department, count in summary["departments"].items()
+    ]
+
+    department_data.sort(
+        key=lambda item: item["Tickets"],
+        reverse=True
     )
+
+    department_fig = px.bar(
+        department_data,
+        x="Tickets",
+        y="Department",
+        orientation="h",
+        text="Tickets",
+        color="Tickets",
+        color_continuous_scale="Teal"
+    )
+
+    department_fig.update_traces(
+        textposition="outside"
+    )
+
+    department_fig.update_layout(
+        title="Ticket Distribution Across Departments",
+        yaxis=dict(autorange="reversed"),
+        xaxis_title="Number of Tickets",
+        yaxis_title="Department",
+        coloraxis_showscale=False,
+        height=max(350, len(department_data) * 45),
+        margin=dict(l=20, r=40, t=60, b=30)
+    )
+
+    st.plotly_chart(
+        department_fig,
+        use_container_width=True
+    )
+
+else:
+    st.info("Department statistics will appear when tickets are created.")
 
     st.divider()
 

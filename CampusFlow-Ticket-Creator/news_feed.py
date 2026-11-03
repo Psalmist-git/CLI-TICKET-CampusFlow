@@ -1,6 +1,7 @@
 import re
 import html
 import urllib.request
+import urllib.parse
 import xml.etree.ElementTree as ET
 
 from datetime import datetime, timezone
@@ -10,28 +11,54 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import streamlit as st
 
 
-NEWS_FEEDS = [
+# Library-focused news sources
+NEWS_SEARCHES = [
     {
-        "name": "BBC Education",
-        "url": "https://feeds.bbci.co.uk/news/education/rss.xml"
+        "name": "Library News",
+        "query": "libraries OR librarians OR library services"
     },
     {
-        "name": "The Guardian Education",
-        "url": "https://www.theguardian.com/education/rss"
+        "name": "Books and Publishing",
+        "query": "books OR publishing OR authors OR book industry"
     },
     {
-        "name": "UNESCO",
-        "url": "https://www.unesco.org/en/newsroom?format=rss"
+        "name": "Reading and Literacy",
+        "query": "reading OR literacy OR reading culture"
     },
     {
-        "name": "Global Education News",
-        "url": (
-            "https://news.google.com/rss/search?"
-            "q=education+OR+universities+OR+schools+OR+students"
-            "+when:7d&hl=en&gl=US&ceid=US:en"
-        )
+        "name": "Research and Digital Libraries",
+        "query": "digital libraries OR academic libraries OR research libraries"
     }
 ]
+
+
+def build_news_feeds():
+    """Build Google News RSS feeds for library-related topics."""
+
+    feeds = []
+
+    for item in NEWS_SEARCHES:
+        params = {
+            "q": f'{item["query"]} when:7d',
+            "hl": "en",
+            "gl": "US",
+            "ceid": "US:en"
+        }
+
+        url = (
+            "https://news.google.com/rss/search?"
+            + urllib.parse.urlencode(params)
+        )
+
+        feeds.append({
+            "name": item["name"],
+            "url": url
+        })
+
+    return feeds
+
+
+NEWS_FEEDS = build_news_feeds()
 
 
 def clean_html(value):
@@ -51,7 +78,6 @@ def find_text(element, names):
     """Find an XML element by its local tag name."""
 
     for child in element.iter():
-
         tag = child.tag.split("}")[-1].lower()
 
         if tag in names:
@@ -111,7 +137,7 @@ def find_image(element, description):
                 return image_url
 
     match = re.search(
-        r'<img[^>]+src=["\']([^"\']+)["\']',
+        r"<img[^>]+src=[\"']([^\"']+)[\"']",
         description,
         re.IGNORECASE
     )
@@ -164,13 +190,11 @@ def fetch_feed(feed):
     request = urllib.request.Request(
         feed["url"],
         headers={
-            "User-Agent": (
-                "Mozilla/5.0 CampusFlow Education News Reader"
-            )
+            "User-Agent": "Mozilla/5.0 CampusFlow Library News Reader"
         }
     )
 
-    with urllib.request.urlopen(request, timeout=8) as response:
+    with urllib.request.urlopen(request, timeout=10) as response:
         xml_data = response.read()
 
     root = ET.fromstring(xml_data)
@@ -216,9 +240,9 @@ def fetch_feed(feed):
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def get_education_news():
+def get_library_news():
     """
-    Collect education news from multiple publishers.
+    Collect library-related news from multiple feeds.
 
     Sources are fetched concurrently.
     Results are cached for ten minutes.
@@ -246,7 +270,7 @@ def get_education_news():
                 failed_sources.append(source_name)
 
                 print(
-                    f"News feed error ({source_name}): "
+                    f"Library news feed error ({source_name}): "
                     f"{type(error).__name__}"
                 )
 
@@ -297,3 +321,9 @@ def get_education_news():
         "failed_sources": failed_sources,
         "updated_at": now.isoformat()
     }
+
+
+# Backward compatibility:
+# Existing app.py calls to get_education_news() will still work.
+def get_education_news():
+    return get_library_news()

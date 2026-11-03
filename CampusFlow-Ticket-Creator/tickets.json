@@ -166,5 +166,17 @@
         "department": "Human Resources / Administrative Services",
         "reason": "The description refers to staffing levels rather than a technical or facility issue. The priority is set to Medium as it reflects an operational concern regarding workload capacity rather than an immediate system failure.",
         "status": "Open"
+    },
+    {
+        "id": "TKT-023",
+        "title": "AC",
+        "description": "None functional the heat is unbearable affecting our learning",
+        "category": "Unclassified",
+        "priority": "Unassigned",
+        "department": "Unassigned",
+        "reason": "Awaiting AI analysis",
+        "status": "In Progress",
+        "assigned_to": "Francis",
+        "assigned_at": "2026-11-03T01:34+01:00"
     }
 ]
