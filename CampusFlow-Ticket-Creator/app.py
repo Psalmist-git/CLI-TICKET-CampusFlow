@@ -678,6 +678,41 @@ div[data-testid="stPopover"] > button:hover {
     }
 }
 
+/* CAMPUSFLOW AI LOADING ANIMATION */
+
+@keyframes campusflow-glow {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(20, 184, 166, 0.10);
+        border-color: rgba(20, 184, 166, 0.25);
+    }
+
+    50% {
+        box-shadow: 0 0 20px rgba(20, 184, 166, 0.30);
+        border-color: rgba(20, 184, 166, 0.75);
+    }
+}
+
+div[data-testid="stSpinner"] {
+    padding: 15px 20px;
+    border: 1px solid rgba(20, 184, 166, 0.25);
+    border-radius: 12px;
+    background: linear-gradient(
+        120deg,
+        rgba(20, 184, 166, 0.08),
+        rgba(15, 23, 42, 0.85)
+    );
+    animation: campusflow-glow 2s ease-in-out infinite;
+}
+
+div[data-testid="stSpinner"] svg {
+    stroke: #14B8A6 !important;
+}
+
+div[data-testid="stSpinner"] p {
+    color: #CCFBF1 !important;
+    font-weight: 600;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
