@@ -2480,6 +2480,10 @@ elif page == "📊 Reports":
 
     summary = generate_dashboard_summary(current_tickets)
 
+    # -------------------------------------------------
+    # TICKET RESOLUTION ANALYTICS
+    # -------------------------------------------------
+
     st.subheader("Ticket Resolution Analytics")
 
     col1, col2, col3 = st.columns(3)
@@ -2495,9 +2499,7 @@ elif page == "📊 Reports":
 
     st.subheader("Overall Resolution Rate")
 
-    st.progress(
-        summary["resolution_rate"] / 100
-    )
+    st.progress(summary["resolution_rate"] / 100)
 
     st.caption(
         f"{summary['resolution_rate']:.1f}% of submitted tickets "
@@ -2505,6 +2507,10 @@ elif page == "📊 Reports":
     )
 
     st.divider()
+
+    # -------------------------------------------------
+    # DEPARTMENT RESOLUTION PERFORMANCE
+    # -------------------------------------------------
 
     st.subheader("Department Resolution Performance")
 
@@ -2547,62 +2553,79 @@ elif page == "📊 Reports":
 
     st.divider()
 
+    # -------------------------------------------------
+    # TICKET CATEGORIES AND PRIORITIES
+    # -------------------------------------------------
+
     st.subheader("Ticket Categories")
     st.bar_chart(summary["categories"])
 
     st.subheader("Ticket Priorities")
     st.bar_chart(summary["priorities"])
 
+    st.divider()
+
+    # -------------------------------------------------
+    # DEPARTMENT WORKLOAD
+    # -------------------------------------------------
+
     st.subheader("🏢 Department Workload")
 
-if summary["departments"]:
+    if summary["departments"]:
 
-    department_data = [
-        {
-            "Department": department,
-            "Tickets": count
-        }
-        for department, count in summary["departments"].items()
-    ]
+        department_data = [
+            {
+                "Department": department,
+                "Tickets": count
+            }
+            for department, count in summary["departments"].items()
+        ]
 
-    department_data.sort(
-        key=lambda item: item["Tickets"],
-        reverse=True
-    )
+        department_data.sort(
+            key=lambda item: item["Tickets"],
+            reverse=True
+        )
 
-    department_fig = px.bar(
-        department_data,
-        x="Tickets",
-        y="Department",
-        orientation="h",
-        text="Tickets",
-        color="Tickets",
-        color_continuous_scale="Teal"
-    )
+        department_fig = px.bar(
+            department_data,
+            x="Tickets",
+            y="Department",
+            orientation="h",
+            text="Tickets",
+            color="Tickets",
+            color_continuous_scale="Teal"
+        )
 
-    department_fig.update_traces(
-        textposition="outside"
-    )
+        department_fig.update_traces(
+            textposition="outside"
+        )
 
-    department_fig.update_layout(
-        title="Ticket Distribution Across Departments",
-        yaxis=dict(autorange="reversed"),
-        xaxis_title="Number of Tickets",
-        yaxis_title="Department",
-        coloraxis_showscale=False,
-        height=max(350, len(department_data) * 45),
-        margin=dict(l=20, r=40, t=60, b=30)
-    )
+        department_fig.update_layout(
+            title="Ticket Distribution Across Departments",
+            yaxis=dict(autorange="reversed"),
+            xaxis_title="Number of Tickets",
+            yaxis_title="Department",
+            coloraxis_showscale=False,
+            height=max(350, len(department_data) * 45),
+            margin=dict(l=20, r=40, t=60, b=30)
+        )
 
-    st.plotly_chart(
-        department_fig,
-        use_container_width=True
-    )
+        st.plotly_chart(
+            department_fig,
+            use_container_width=True
+        )
 
-else:
-    st.info("Department statistics will appear when tickets are created.")
+    else:
+
+        st.info(
+            "Department statistics will appear when tickets are created."
+        )
 
     st.divider()
+
+    # -------------------------------------------------
+    # HISTORICAL TICKET INTELLIGENCE
+    # -------------------------------------------------
 
     st.header("🧠 Historical Ticket Intelligence")
 
@@ -2655,7 +2678,7 @@ else:
 
                 save_tickets(updated_tickets)
 
-                progress_bar.progress(100)
+                progress_bar.progress(1.0)
 
                 status_text.success(
                     "Historical analysis completed!"
@@ -2683,7 +2706,32 @@ else:
 
                 print(
                     f"Historical classification error: "
-                    f"{type(error).__name__}"
+                    f"{type(error).__name__}: {error}"
+                )
+
+                st.success(
+                    f"AI classification completed! "
+                    f"{updated} ticket(s) updated."
+                )
+
+                if failed:
+
+                    st.warning(
+                        f"{failed} ticket(s) could not be classified. "
+                        "You can try again later."
+                    )
+
+                st.rerun()
+
+            except Exception as error:
+
+                st.error(
+                    "Historical classification encountered an error."
+                )
+
+                print(
+                    f"Historical classification error: "
+                    f"{type(error).__name__}: {error}"
                 )
 
 
