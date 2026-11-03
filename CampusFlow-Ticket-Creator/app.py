@@ -895,7 +895,7 @@ def render_global_education_news():
 
     if refresh_clicked:
 
-        get_library_news.clear()
+        st.cache_data.clear()
         st.rerun(scope="fragment")
 
     news_data = get_education_news()
